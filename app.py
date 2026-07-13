@@ -35,7 +35,7 @@ DESTINATION_DB = {
 }
 
 # =========================
-# 크롤링 및 유틸리티 함수들
+# 크롤링 및 팝업 제어
 # =========================
 def close_popups(page):
     try:
@@ -192,6 +192,7 @@ def find_matched_map_image(dest_name):
 # DOC 서식 조작용 헬퍼 함수
 # =========================
 def set_run_font(run, font_name, size_pt, bold=False):
+    """지정된 글씨체(맑은 고딕)를 완벽하게 강제 매핑"""
     run.font.size = Pt(size_pt)
     run.font.bold = bold
     run.font.name = font_name
@@ -200,14 +201,17 @@ def set_run_font(run, font_name, size_pt, bold=False):
     if rFonts is None:
         rFonts = OxmlElement('w:rFonts')
         rPr.append(rFonts)
+    # 한글 및 아시아 서체 인식을 위해 eastAsia 속성에 명시적으로 지정
     rFonts.set(qn('w:eastAsia'), font_name)
+    rFonts.set(qn('w:ascii'), font_name)
+    rFonts.set(qn('w:hAnsi'), font_name)
 
 def set_cell_background(cell, hex_color):
     shading_elm = parse_xml(f'<w:shd xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:fill="{hex_color}"/>')
     cell._tc.get_or_add_tcPr().append(shading_elm)
 
 def apply_title_table_borders(cell):
-    """제목 표: 위아래 이중선, 좌우 테두리 없음(none)"""
+    """제목 표: 위아래 이중선, 좌우 테두리 없음"""
     tcPr = cell._tc.get_or_add_tcPr()
     tcBorders = parse_xml(
         '<w:tcBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -215,12 +219,12 @@ def apply_title_table_borders(cell):
         '<w:left w:val="none"/>'
         '<w:bottom w:val="double" w:sz="12" w:space="0" w:color="000000"/>'
         '<w:right w:val="none"/>'
-        '</w:tcBorders>'
+                '</w:tcBorders>'
     )
     tcPr.append(tcBorders)
 
 def apply_main_table_outer_borders(table):
-    """본문 표: 외곽선 굵게(sz=12), 내부 얇은 실선"""
+    """본문 표: 외곽선 굵게(1.5pt), 내부 실선"""
     tblPr = table._element.xpath('w:tblPr')
     if tblPr:
         borders = parse_xml(
@@ -236,7 +240,7 @@ def apply_main_table_outer_borders(table):
         tblPr[0].append(borders)
 
 def remove_cell_margins(cell):
-    """셀 내부 기본 패딩/여백을 완전히 없애서 다음 페이지로 밀리는 현상 차단"""
+    """셀 내부 기본 마진을 제로로 만들어 페이지 넘침 완벽 제거"""
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
         '<w:tcMar xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -255,17 +259,17 @@ def remove_cell_margins(cell):
 def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capture.png"):
     doc = Document()
 
-    # 무조건 한 페이지 정착을 위해 상하 여백 극단적 압축 (상하 10mm, 좌우 15mm)
+    # 상하 마진 압축 설정 (위아래 10mm, 좌우 15mm)
     for section in doc.sections:
         section.top_margin = Mm(10)
         section.bottom_margin = Mm(10)
         section.left_margin = Mm(15)
         section.right_margin = Mm(15)
 
-    total_table_width = Mm(180.0) # 마진 축소에 따른 가용 너비 확장
+    total_table_width = Mm(180.0)
 
     # ----------------------------------------------------
-    # 1. 제목 표 구성 (독립된 표 형태)
+    # 1. 제목 표 생성
     # ----------------------------------------------------
     title_table = doc.add_table(rows=1, cols=1)
     title_table.autofit = False
@@ -274,21 +278,21 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     remove_cell_margins(title_cell)
     
-    set_cell_background(title_cell, "E0E0E0")  # 요구사항: 회색 배경
-    apply_title_table_borders(title_cell)     # 요구사항: 좌우 테두리 제거 및 위아래 이중선
+    set_cell_background(title_cell, "E0E0E0")  # 배경 회색 변경
+    apply_title_table_borders(title_cell)     # 좌우 테두리 제거 + 위아래 이중선
     
     title_p = title_cell.paragraphs[0]
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    # 요구사항: 제목 표의 위아래 여백을 최대한 줄임 (0pt)
+    # 요구사항: 제목 표의 위아래 여백 최소화 (0pt)
     title_p.paragraph_format.space_before = Pt(0)
     title_p.paragraph_format.space_after = Pt(0)
     title_p.paragraph_format.line_spacing = 1.0
     
     title_run = title_p.add_run("시외출장 지출(개인차량) 증빙 내역")
-    # 요구사항: 제목 글자 크기를 더 확대 (22pt) + 한글 기본 글꼴 적용
-    set_run_font(title_run, "굴림", 22, bold=True) 
+    # 요구사항: 제목 글씨 크기 확대 (24pt) + 글씨체 '맑은 고딕'
+    set_run_font(title_run, "맑은 고딕", 24, bold=True) 
 
-    # 표 사이 간격 최소화
+    # 표 사이 최소 여백 단락
     spacer = doc.add_paragraph()
     spacer.paragraph_format.space_before = Pt(4)
     spacer.paragraph_format.space_after = Pt(0)
@@ -296,7 +300,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     # ----------------------------------------------------
     # 2. 본문 표 구성 (데이터 5행 + 스크린샷 2행 = 총 7행)
     # ----------------------------------------------------
-    col_widths = [Mm(40.0), Mm(50.0), Mm(40.0), Mm(50.0)]
+    col_widths = [Mm(35.0), Mm(55.0), Mm(35.0), Mm(55.0)]
     table = doc.add_table(rows=7, cols=4)
     table.style = "Table Grid"
     table.autofit = False
@@ -314,46 +318,46 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         ("유가(원,오피넷기준)", f"{data_dict['oil_price']:,}", "총 계", f"{data_dict['total_cost']:,}"),
     ]
 
-    # 데이터 입력 및 글씨체 수정 (요구사항 반영: 한글 기본 바탕/굴림 양식 매칭)
+    # 요구사항 반영: 모든 라벨 및 데이터 값을 '맑은 고딕' 서체로 일체화
     for idx, (l1, v1, l2, v2) in enumerate(rows_data):
         cells = table.rows[idx].cells
 
-        # 1열: 왼쪽 라벨 영역 -> 요구사항: 제목과 같은 배경색 처리
+        # 1열: 왼쪽 라벨 영역 -> 제목과 똑같은 회색 배경색 및 맑은 고딕
         cells[0].text = ""
         p0 = cells[0].paragraphs[0]
         p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p0.paragraph_format.space_before = Pt(3)
-        p0.paragraph_format.space_after = Pt(3)
-        set_run_font(p0.add_run(l1), "굴림", 11, bold=True) # 글씨체 매칭
+        p0.paragraph_format.space_before = Pt(2)
+        p0.paragraph_format.space_after = Pt(2)
+        set_run_font(p0.add_run(l1), "맑은 고딕", 11, bold=True)
         set_cell_background(cells[0], "E0E0E0") 
 
-        # 2열: 왼쪽 값 영역 -> 글씨체 매칭
+        # 2열: 왼쪽 데이터 영역 -> 맑은 고딕
         cells[1].text = ""
         p1 = cells[1].paragraphs[0]
         p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p1.paragraph_format.space_before = Pt(3)
-        p1.paragraph_format.space_after = Pt(3)
-        set_run_font(p1.add_run(str(v1)), "바탕", 10, bold=False)
+        p1.paragraph_format.space_before = Pt(2)
+        p1.paragraph_format.space_after = Pt(2)
+        set_run_font(p1.add_run(str(v1)), "맑은 고딕", 10, bold=False)
 
-        # 3열: 오른쪽 라벨 영역 -> 요구사항: 제목과 같은 배경색 처리
+        # 3열: 오른쪽 라벨 영역 -> 제목과 똑같은 회색 배경색 및 맑은 고딕
         cells[2].text = ""
         p2 = cells[2].paragraphs[0]
         p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p2.paragraph_format.space_before = Pt(3)
-        p2.paragraph_format.space_after = Pt(3)
-        set_run_font(p2.add_run(l2), "굴림", 11, bold=True) # 글씨체 매칭
+        p2.paragraph_format.space_before = Pt(2)
+        p2.paragraph_format.space_after = Pt(2)
+        set_run_font(p2.add_run(l2), "맑은 고딕", 11, bold=True)
         set_cell_background(cells[2], "E0E0E0") 
 
-        # 4열: 오른쪽 값 영역 -> 글씨체 매칭
+        # 4열: 오른쪽 데이터 영역 -> 맑은 고딕
         cells[3].text = ""
         p3 = cells[3].paragraphs[0]
         p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p3.paragraph_format.space_before = Pt(3)
-        p3.paragraph_format.space_after = Pt(3)
-        set_run_font(p3.add_run(str(v2)), "바탕", 10, bold=False)
+        p3.paragraph_format.space_before = Pt(2)
+        p3.paragraph_format.space_after = Pt(2)
+        set_run_font(p3.add_run(str(v2)), "맑은 고딕", 10, bold=False)
 
     # ----------------------------------------------------
-    # 3. 경로 네이버지도 스크린샷 행 처리 (표 크기에 꼭 맞춤)
+    # 3. 경로 네이버지도 스크린샷 행 처리 (크기 대폭 하향 조정)
     # ----------------------------------------------------
     map_cell = table.rows[5].cells[0]
     for c in table.rows[5].cells[1:]:
@@ -366,14 +370,14 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     map_p.paragraph_format.space_after = Pt(1)
     
     if map_image_path and os.path.exists(map_image_path):
-        # 요구사항: 2페이지 방지를 위해 표 안쪽 너비 크기에 맞춰 이미지 스케일 최소 다운
-        map_p.add_run().add_picture(map_image_path, width=Mm(145)) 
+        # 2페이지 넘침 원천 차단을 위해 가로 크기를 안전하게 Mm(105)로 축소 조정
+        map_p.add_run().add_picture(map_image_path, width=Mm(105)) 
     else:
         r = map_p.add_run("경로 네이버지도 스크린샷")
-        set_run_font(r, "굴림", 11, bold=False)
+        set_run_font(r, "맑은 고딕", 11, bold=False)
 
     # ----------------------------------------------------
-    # 4. 오피넷 스크린샷 행 처리 (표 크기에 꼭 맞춤)
+    # 4. 오피넷 스크린샷 행 처리 (크기 대폭 하향 조정)
     # ----------------------------------------------------
     opinet_cell = table.rows[6].cells[0]
     for c in table.rows[6].cells[1:]:
@@ -386,13 +390,13 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     opinet_p.paragraph_format.space_after = Pt(1)
     
     if opinet_image_path and os.path.exists(opinet_image_path):
-        # 요구사항: 2페이지 방지를 위해 표 안쪽 너비 크기에 맞춰 이미지 스케일 최소 다운
-        opinet_p.add_run().add_picture(opinet_image_path, width=Mm(145))
+        # 2페이지 넘침 원천 차단을 위해 가로 크기를 안전하게 Mm(105)로 축소 조정
+        opinet_p.add_run().add_picture(opinet_image_path, width=Mm(105))
     else:
         r = opinet_p.add_run("오피넷 스크린샷")
-        set_run_font(r, "굴림", 11, bold=False)
+        set_run_font(r, "맑은 고딕", 11, bold=False)
 
-    # 본문 표 외곽에 굵은 네모 테두리 인가
+    # 외곽 테두리 굵게 처리 적용
     apply_main_table_outer_borders(table)
 
     output = "출장지출증빙_보고서.docx"
