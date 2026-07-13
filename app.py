@@ -205,8 +205,8 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                headless=False,
-                channel="chrome",
+                headless=True,
+                channel="chromium",
                 args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
             )
 
