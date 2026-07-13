@@ -42,7 +42,6 @@ def close_popups(page):
         page.keyboard.press("Escape")
     except:
         pass
-
     try:
         page.evaluate("""
             () => {
@@ -54,10 +53,7 @@ def close_popups(page):
                 document.body.style.position = 'static';
                 document.querySelectorAll('*').forEach(el => {
                     const style = window.getComputedStyle(el);
-                    if (
-                        style.position === 'fixed' &&
-                        parseInt(style.zIndex || 0) > 1000
-                    ) {
+                    if (style.position === 'fixed' && parseInt(style.zIndex || 0) > 1000) {
                         el.remove();
                     }
                 });
@@ -83,14 +79,11 @@ def set_opinet_date(page, date_obj):
     year = str(date_obj.year)
     month = str(date_obj.month)
     day = str(date_obj.day)
-
     page.evaluate(f"""
         (() => {{
             const target = {{ year: '{year}', month: '{month}', day: '{day}' }};
             function trySet(select, value) {{
-                const opt = Array.from(select.options).find(
-                    o => o.text.trim() === String(value) || o.value === String(value)
-                );
+                const opt = Array.from(select.options).find(o => o.text.trim() === String(value) || o.value === String(value));
                 if (opt) {{
                     select.value = opt.value;
                     select.dispatchEvent(new Event('change', {{ bubbles: true }}));
@@ -98,8 +91,7 @@ def set_opinet_date(page, date_obj):
                 }}
                 return false;
             }}
-            const selects = Array.from(document.querySelectorAll('select'))
-                .filter(s => s.offsetParent !== null);
+            const selects = Array.from(document.querySelectorAll('select')).filter(s => s.offsetParent !== null);
             const yearSelects = selects.filter(s => Array.from(s.options).some(o => o.text.trim() === target.year));
             const monthSelects = selects.filter(s => s.options.length <= 13 && Array.from(s.options).some(o => o.text.trim() === target.month));
             const daySelects = selects.filter(s => s.options.length >= 28 && Array.from(s.options).some(o => o.text.trim() === target.day));
@@ -244,12 +236,14 @@ def apply_main_table_outer_borders(table):
         tblPr[0].append(borders)
 
 def remove_cell_margins(cell):
-    """스크린샷 셀 내부 여백(여백으로 인한 다음 페이지 밀림 현상) 제거"""
+    """스크린샷 셀 내부 여백 최적화 (한 페이지 완전 집약용)"""
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
         '<w:tcMar xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:top w:w="0" w:type="dxa"/>'
         '<w:bottom w:w="0" w:type="dxa"/>'
+        '<w:left w:w="0" w:type="dxa"/>'
+        '<w:right w:w="0" w:type="dxa"/>'
         '</w:tcMar>'
     )
     tcPr.append(tcMar)
@@ -261,35 +255,38 @@ def remove_cell_margins(cell):
 def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capture.png"):
     doc = Document()
 
-    # 페이지 내 압축 집약을 위해 문서 여백을 타이트하게 조절 (1.5cm)
+    # 페이지 내 무조건 한 페이지 정착을 위해 문서 상하 여백 최적 압축 (1.0cm)
     for section in doc.sections:
-        section.top_margin = Mm(15)
-        section.bottom_margin = Mm(15)
+        section.top_margin = Mm(10)
+        section.bottom_margin = Mm(10)
         section.left_margin = Mm(20)
         section.right_margin = Mm(20)
 
+    # 전체 사용 가능한 본문 칸 폭 계산값 정의 (168.97mm)
+    total_table_width = Mm(168.97)
+
     # ----------------------------------------------------
-    # 1. 제목 표 생성 (본문 표와 완벽하게 격리 분리됨)
+    # 1. 제목 표 생성 (본문 표와 분리됨)
     # ----------------------------------------------------
     title_table = doc.add_table(rows=1, cols=1)
     title_table.autofit = False
     title_cell = title_table.rows[0].cells[0]
-    title_cell.width = Mm(167.97) # 전체 단폭 매칭
+    title_cell.width = total_table_width
     title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     
-    set_cell_background(title_cell, "E0E0E0")  # 요구사항: 제목 셀 회색 배경
-    apply_title_table_borders(title_cell)     # 요구사항: 좌우 테두리 없음 + 위아래 이중선
+    set_cell_background(title_cell, "E0E0E0")  # 제목 셀 회색 배경
+    apply_title_table_borders(title_cell)     # 좌우 테두리 제거 + 위아래 이중선
     
     title_p = title_cell.paragraphs[0]
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_p.paragraph_format.space_before = Pt(8)
-    title_p.paragraph_format.space_after = Pt(8)
+    title_p.paragraph_format.space_before = Pt(6)
+    title_p.paragraph_format.space_after = Pt(6)
     title_run = title_p.add_run("시외출장 지출(개인차량) 증빙 내역")
-    set_run_font(title_run, "맑은 고딕", 19, bold=True) # 요구사항: 글자 크기 더 확대 (19pt)
+    set_run_font(title_run, "함초롬바탕", 19, bold=True) # 제목 글자 크기 확대 (19pt) + 함초롬바탕
 
-    # 두 표 사이에 적절한 공백 간격 단락 배치
+    # 두 표 사이 공백 단락 제거 혹은 최소화하여 페이지 밀림 전면 방지
     spacer = doc.add_paragraph()
-    spacer.paragraph_format.space_before = Pt(10)
+    spacer.paragraph_format.space_before = Pt(6)
     spacer.paragraph_format.space_after = Pt(0)
 
     # ----------------------------------------------------
@@ -305,7 +302,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
             cell.width = col_widths[idx]
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
-    # 데이터 매핑 배열 정의
+    # 데이터 매핑 구조 정의
     rows_data = [
         ("운행일시", data_dict["date"], "유류비(원)", f"{data_dict['fuel_cost']:,}"),
         ("출장지", data_dict["path"], "통행료", f"{data_dict['toll']:,}"),
@@ -314,77 +311,77 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         ("유가(원,오피넷기준)", f"{data_dict['oil_price']:,}", "총 계", f"{data_dict['total_cost']:,}"),
     ]
 
-    # 데이터 행 채우기 및 중앙 정렬 서식 지정
+    # 데이터 행 채우기 (모든 항목 함초롬바탕 일체화 적용)
     for idx, (l1, v1, l2, v2) in enumerate(rows_data):
         cells = table.rows[idx].cells
 
-        # 왼쪽 라벨 (1열) -> 배경색 적용
+        # 1열: 왼쪽 라벨 영역 -> 제목과 똑같은 회색 배경색 지정
         cells[0].text = ""
         p0 = cells[0].paragraphs[0]
         p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        set_run_font(p0.add_run(l1), "맑은 고딕", 11, bold=False)
-        set_cell_background(cells[0], "E0E0E0") # 요구사항: 제목과 동일한 배경색 주입
+        set_run_font(p0.add_run(l1), "함초롬바탕", 11, bold=True) # 글씨체 일치
+        set_cell_background(cells[0], "E0E0E0") 
 
-        # 왼쪽 데이터 (2열)
+        # 2열: 왼쪽 값 영역 -> 글씨체 일치
         cells[1].text = ""
         p1 = cells[1].paragraphs[0]
         p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
         set_run_font(p1.add_run(str(v1)), "함초롬바탕", 10, bold=False)
 
-        # 오른쪽 라벨 (3열) -> 배경색 및 굵게 적용
+        # 3열: 오른쪽 라벨 영역 -> 제목과 똑같은 회색 배경색 지정
         cells[2].text = ""
         p2 = cells[2].paragraphs[0]
         p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        set_run_font(p2.add_run(l2), "맑은 고딕", 11, bold=True)
-        set_cell_background(cells[2], "E0E0E0") # 요구사항: 제목과 동일한 배경색 주입
+        set_run_font(p2.add_run(l2), "함초롬바탕", 11, bold=True) # 글씨체 일치
+        set_cell_background(cells[2], "E0E0E0") 
 
-        # 오른쪽 데이터 (4열)
+        # 4열: 오른쪽 값 영역 -> 글씨체 일치
         cells[3].text = ""
         p3 = cells[3].paragraphs[0]
         p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
         set_run_font(p3.add_run(str(v2)), "함초롬바탕", 10, bold=False)
 
     # ----------------------------------------------------
-    # 3. 경로 네이버지도 스크린샷 행 처리 (5번째 행)
+    # 3. 경로 네이버지도 스크린샷 행 처리 (표 칸 크기에 100% 맞춤)
     # ----------------------------------------------------
     map_cell = table.rows[5].cells[0]
     for c in table.rows[5].cells[1:]:
         map_cell = map_cell.merge(c)
-    remove_cell_margins(map_cell)
+    remove_cell_margins(map_cell) # 여백 완전히 지움
     
     map_p = map_cell.paragraphs[0]
     map_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    map_p.paragraph_format.space_before = Pt(4)
-    map_p.paragraph_format.space_after = Pt(4)
+    map_p.paragraph_format.space_before = Pt(2)
+    map_p.paragraph_format.space_after = Pt(2)
     
     if map_image_path and os.path.exists(map_image_path):
-        # 요구사항: 1페이지 내에 딱 맞춰 정착되도록 너비 스케일 다운 제어 (145mm)
-        map_p.add_run().add_picture(map_image_path, width=Mm(145)) 
+        # 표의 전체 안쪽 폭과 완전히 일치하도록 크기 자동 핏 스케일링 적용
+        map_p.add_run().add_picture(map_image_path, width=total_table_width) 
     else:
         r = map_p.add_run("경로 네이버지도 스크린샷")
-        set_run_font(r, "맑은 고딕", 11, bold=False)
+        set_run_font(r, "함초롬바탕", 11, bold=False)
 
     # ----------------------------------------------------
-    # 4. 오피넷 스크린샷 행 처리 (6번째 행)
+    # 4. 오피넷 스크린샷 행 처리 (표 칸 크기에 100% 맞춤)
     # ----------------------------------------------------
     opinet_cell = table.rows[6].cells[0]
     for c in table.rows[6].cells[1:]:
         opinet_cell = opinet_cell.merge(c)
-    remove_cell_margins(opinet_cell)
+    remove_cell_margins(opinet_cell) # 여백 완전히 지움
     
     opinet_p = opinet_cell.paragraphs[0]
     opinet_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    opinet_p.paragraph_format.space_before = Pt(4)
-    opinet_p.paragraph_format.space_after = Pt(4)
+    opinet_p.paragraph_format.space_before = Pt(2)
+    opinet_p.paragraph_format.space_after = Pt(2)
     
     if opinet_image_path and os.path.exists(opinet_image_path):
-        # 요구사항: 1페이지 내에 딱 맞춰 정착되도록 너비 스케일 다운 제어 (145mm)
-        opinet_p.add_run().add_picture(opinet_image_path, width=Mm(145))
+        # 표의 전체 안쪽 폭과 완전히 일치하도록 크기 자동 핏 스케일링 적용
+        opinet_p.add_run().add_picture(opinet_image_path, width=total_table_width)
     else:
         r = opinet_p.add_run("오피넷 스크린샷")
-        set_run_font(r, "맑은 고딕", 11, bold=False)
+        set_run_font(r, "함초롬바탕", 11, bold=False)
 
-    # 본문 테이블의 전면 외곽 테두리 굵게 설정 기입
+    # 본문 테이블의 외곽 테두리를 아주 굵게 설정
     apply_main_table_outer_borders(table)
 
     output = "출장지출증빙_보고서.docx"
