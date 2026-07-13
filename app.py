@@ -262,12 +262,13 @@ def apply_main_table_outer_borders(table):
 
 def remove_cell_margins(cell):
     tcPr = cell._tc.get_or_add_tcPr()
+    # [수정 완료] d:type="dxa" 오타를 w:type="dxa"로 수정하여 정상화
     tcMar = parse_xml(
         '<w:tcMar xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:top w:w="0" w:type="dxa"/>'
         '<w:bottom w:w="0" w:type="dxa"/>'
         '<w:left w:w="0" w:type="dxa"/>'
-        '<w:right w:w="0" d:type="dxa"/>'
+        '<w:right w:w="0" w:type="dxa"/>'
         '</w:tcMar>'
     )
     tcPr.append(tcMar)
@@ -380,7 +381,6 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     map_p.paragraph_format.space_after = Pt(2)
     
     if map_image_path and os.path.exists(map_image_path):
-        # [변경사항] 사진 크기를 한층 더 키워서 Mm(120)으로 적용
         map_p.add_run().add_picture(map_image_path, width=Mm(120)) 
     else:
         r = map_p.add_run("경로 네이버지도 스크린샷")
@@ -398,7 +398,6 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     opinet_p.paragraph_format.space_after = Pt(2)
     
     if opinet_image_path and os.path.exists(opinet_image_path):
-        # [변경사항] 사진 크기를 한층 더 키워서 Mm(120)으로 적용
         opinet_p.add_run().add_picture(opinet_image_path, width=Mm(120))
     else:
         r = opinet_p.add_run("오피넷 스크린샷")
