@@ -175,9 +175,10 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 """)
                 
                 if extracted_price:
-                    num_str = "".join(filter(str.isdigit, extracted_price))
-                    if num_str and int(num_str) > 1000:
-                        oil_price = int(num_str)
+                    try:
+                        oil_price = int(float(extracted_price.replace(",", "")))
+                    except:
+                        pass
             except Exception as ex:
                 print(f"세로축 가격 파싱 실패: {ex}")
 
