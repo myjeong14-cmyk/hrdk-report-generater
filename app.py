@@ -66,54 +66,6 @@ def close_popups(page):
     except:
         pass
 
-
-# =========================
-# hover 메뉴
-# =========================
-def hover_menu(page, text):
-    for _ in range(3):
-        try:
-            close_popups(page)
-            page.get_by_text(text, exact=False).first.hover(timeout=3000)
-            return True
-        except:
-            time.sleep(1)
-    return False
-
-
-# =========================
-# 안정 클릭 함수 (핵심)
-# =========================
-def click_menu_safe(page, text):
-    for _ in range(5):
-        try:
-            close_popups(page)
-            page.wait_for_timeout(800)
-
-            locator = page.locator(f"text={text}")
-            locator.first.wait_for(timeout=3000)
-            locator.first.click(force=True)
-
-            return True
-        except:
-            page.wait_for_timeout(800)
-
-    return False
-
-
-# =========================
-# 기타 유틸
-# =========================
-def find_matched_map_image(dest_name):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    map_dir = os.path.join(base_dir, "map")
-    for ext in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
-        target = os.path.join(map_dir, f"{dest_name}{ext}")
-        if os.path.exists(target):
-            return target
-    return None
-
-
 def select_daily_tab(page):
     try:
         page.evaluate("""
@@ -127,7 +79,6 @@ def select_daily_tab(page):
     except:
         pass
 
-
 def set_opinet_date(page, date_obj):
     year = str(date_obj.year)
     month = str(date_obj.month)
@@ -136,7 +87,6 @@ def set_opinet_date(page, date_obj):
     page.evaluate(f"""
         (() => {{
             const target = {{ year: '{year}', month: '{month}', day: '{day}' }};
-
             function trySet(select, value) {{
                 const opt = Array.from(select.options).find(
                     o => o.text.trim() === String(value) || o.value === String(value)
@@ -148,28 +98,16 @@ def set_opinet_date(page, date_obj):
                 }}
                 return false;
             }}
-
             const selects = Array.from(document.querySelectorAll('select'))
                 .filter(s => s.offsetParent !== null);
-
-            const yearSelects = selects.filter(s =>
-                Array.from(s.options).some(o => o.text.trim() === target.year)
-            );
-            const monthSelects = selects.filter(s =>
-                s.options.length <= 13 &&
-                Array.from(s.options).some(o => o.text.trim() === target.month)
-            );
-            const daySelects = selects.filter(s =>
-                s.options.length >= 28 &&
-                Array.from(s.options).some(o => o.text.trim() === target.day)
-            );
-
+            const yearSelects = selects.filter(s => Array.from(s.options).some(o => o.text.trim() === target.year));
+            const monthSelects = selects.filter(s => s.options.length <= 13 && Array.from(s.options).some(o => o.text.trim() === target.month));
+            const daySelects = selects.filter(s => s.options.length >= 28 && Array.from(s.options).some(o => o.text.trim() === target.day));
             yearSelects.forEach(s => trySet(s, target.year));
             monthSelects.forEach(s => trySet(s, target.month));
             daySelects.forEach(s => trySet(s, target.day));
         }})()
     """)
-
 
 def click_query(page):
     for sel in ["a:has-text('조회')", "button:has-text('조회')", "input[value='조회']"]:
@@ -182,7 +120,6 @@ def click_query(page):
             pass
     return False
 
-
 def wait_result_update(page):
     try:
         page.wait_for_load_state("networkidle", timeout=10000)
@@ -190,15 +127,9 @@ def wait_result_update(page):
         pass
     time.sleep(3)
 
-
-# =========================
-# 오피넷 캡처 핵심
-# =========================
 def capture_opinet_print_page(target_date_obj, fuel_type):
     filename = "opinet_capture.png"
     oil_price = 1640 if "휘발유" in fuel_type else 1510
-    date_str = target_date_obj.strftime("%Y%m%d")
-
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -206,19 +137,12 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 executable_path="/usr/bin/chromium",
                 args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
             )
-
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={"width": 1400, "height": 950}
             )
-
             page = context.new_page()
-
-            page.goto(
-                "https://www.opinet.co.kr/user/dopospdrg/dopOsPdrgSelect.do",
-                wait_until="domcontentloaded",
-                timeout=20000
-            )
+            page.goto("https://www.opinet.co.kr/user/dopospdrg/dopOsPdrgSelect.do", wait_until="domcontentloaded", timeout=20000)
             page.wait_for_timeout(2000)
 
             close_popups(page)
@@ -230,7 +154,6 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
 
             if not click_query(page):
                 raise Exception("조회 버튼 실패")
-
             wait_result_update(page)
 
             try:
@@ -242,16 +165,13 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 pass
 
             print_page = None
-
             try:
                 with context.expect_page(timeout=7000) as pop:
                     try:
                         page.evaluate("chkPrint();")
                     except:
                         page.get_by_text("화면인쇄").first.click(force=True)
-
                     page.wait_for_timeout(1500)
-
                 print_page = pop.value
             except:
                 if len(context.pages) > 1:
@@ -261,27 +181,23 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 raise Exception("인쇄창 없음")
 
             print_page.screenshot(path=filename, full_page=True)
-
             browser.close()
             return filename, oil_price
-
     except Exception as e:
         st.error(f"오피넷 캡처 중 에러 발생: {e}")
-        try:
-            if 'context' in locals() and len(context.pages) > 0:
-                context.pages[-1].screenshot(path=filename, full_page=True)
-        except:
-            pass
-        try:
-            if 'browser' in locals():
-                browser.close()
-        except:
-            pass
         return filename, oil_price
 
+def find_matched_map_image(dest_name):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    map_dir = os.path.join(base_dir, "map")
+    for ext in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
+        target = os.path.join(map_dir, f"{dest_name}{ext}")
+        if os.path.exists(target):
+            return target
+    return None
 
 # =========================
-# DOC 서식 함수 및 생성
+# DOC 서식 조작용 헬퍼 함수
 # =========================
 def set_run_font(run, font_name, size_pt, bold=False):
     run.font.size = Pt(size_pt)
@@ -295,12 +211,24 @@ def set_run_font(run, font_name, size_pt, bold=False):
     rFonts.set(qn('w:eastAsia'), font_name)
 
 def set_cell_background(cell, hex_color):
-    """셀 배경색을 지정하는 함수"""
     shading_elm = parse_xml(f'<w:shd xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:fill="{hex_color}"/>')
     cell._tc.get_or_add_tcPr().append(shading_elm)
 
-def apply_table_outer_borders(table):
-    """표의 외곽 테두리를 굵게(sz=12는 1.5pt) 설정하는 함수"""
+def apply_title_table_borders(cell):
+    """제목 표 전용: 위아래 이중선 부여, 좌우 테두리는 완전히 제거(none)"""
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcBorders = parse_xml(
+        '<w:tcBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:top w:val="double" w:sz="12" w:space="0" w:color="000000"/>'
+        '<w:left w:val="none"/>'
+        '<w:bottom w:val="double" w:sz="12" w:space="0" w:color="000000"/>'
+        '<w:right w:val="none"/>'
+        '</w:tcBorders>'
+    )
+    tcPr.append(tcBorders)
+
+def apply_main_table_outer_borders(table):
+    """본문 표: 외곽 전체를 굵은 단선 테두리(1.5pt), 내부는 일반 회색 선 처리"""
     tblPr = table._element.xpath('w:tblPr')
     if tblPr:
         borders = parse_xml(
@@ -315,64 +243,69 @@ def apply_table_outer_borders(table):
         )
         tblPr[0].append(borders)
 
-def apply_double_borders_to_title(cell):
-    """제목 셀의 위와 아래에 이중 테두리(double)를 부여하는 함수"""
+def remove_cell_margins(cell):
+    """스크린샷 셀 내부 여백(여백으로 인한 다음 페이지 밀림 현상) 제거"""
     tcPr = cell._tc.get_or_add_tcPr()
-    tcBorders = parse_xml(
-        '<w:tcBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-        '<w:top w:val="double" w:sz="12" w:space="0" w:color="000000"/>'
-        '<w:bottom w:val="double" w:sz="12" w:space="0" w:color="000000"/>'
-        '</w:tcBorders>'
+    tcMar = parse_xml(
+        '<w:tcMar xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:top w:w="0" w:type="dxa"/>'
+        '<w:bottom w:w="0" w:type="dxa"/>'
+        '</w:tcMar>'
     )
-    tcPr.append(tcBorders)
+    tcPr.append(tcMar)
 
+
+# =========================
+# DOCX 리포트 생성 프로세스
+# =========================
 def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capture.png"):
     doc = Document()
 
-    # 원본 양식 여백 최적화 (모두 한 페이지에 들어가도록 하단/상단 여백 타이트하게 조절)
+    # 페이지 내 압축 집약을 위해 문서 여백을 타이트하게 조절 (1.5cm)
     for section in doc.sections:
         section.top_margin = Mm(15)
         section.bottom_margin = Mm(15)
         section.left_margin = Mm(20)
         section.right_margin = Mm(20)
 
-    col_widths = [Mm(39.06), Mm(41.99), Mm(43.46), Mm(43.46)]
-    
-    # 1개의 큰 표 구조 생성 (제목 포함 총 8행)
-    # 0행: 제목 (병합)
-    # 1~5행: 데이터 항목들
-    # 6행: 네이버 지도 스크린샷 (병합)
-    # 7행: 오피넷 스크린샷 (병합)
-    table = doc.add_table(rows=8, cols=4)
-    table.style = "Table Grid"
-    table.autofit = False
-
-    # 기본 셀 너비 세팅
-    for row in table.rows:
-        for idx, cell in enumerate(row.cells):
-            cell.width = col_widths[idx]
-            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-
     # ----------------------------------------------------
-    # 0행: 제목 셀 구성 (회색 배경, 위아래 이중선, 중앙 정렬)
+    # 1. 제목 표 생성 (본문 표와 완벽하게 격리 분리됨)
     # ----------------------------------------------------
-    title_cell = table.rows[0].cells[0]
-    for c in table.rows[0].cells[1:]:
-        title_cell = title_cell.merge(c)
+    title_table = doc.add_table(rows=1, cols=1)
+    title_table.autofit = False
+    title_cell = title_table.rows[0].cells[0]
+    title_cell.width = Mm(167.97) # 전체 단폭 매칭
+    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     
-    set_cell_background(title_cell, "E0E0E0") # 밝은 회색(한글 양식 느낌)
-    apply_double_borders_to_title(title_cell)
+    set_cell_background(title_cell, "E0E0E0")  # 요구사항: 제목 셀 회색 배경
+    apply_title_table_borders(title_cell)     # 요구사항: 좌우 테두리 없음 + 위아래 이중선
     
     title_p = title_cell.paragraphs[0]
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_p.paragraph_format.space_before = Pt(8)
     title_p.paragraph_format.space_after = Pt(8)
     title_run = title_p.add_run("시외출장 지출(개인차량) 증빙 내역")
-    set_run_font(title_run, "맑은 고딕", 16, bold=True)
+    set_run_font(title_run, "맑은 고딕", 19, bold=True) # 요구사항: 글자 크기 더 확대 (19pt)
+
+    # 두 표 사이에 적절한 공백 간격 단락 배치
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.space_before = Pt(10)
+    spacer.paragraph_format.space_after = Pt(0)
 
     # ----------------------------------------------------
-    # 1~5행: 데이터 입력 (셀 안에서 상하좌우 정중앙 정렬)
+    # 2. 본문 표 생성 (데이터 5행 + 스크린샷 2행 = 총 7행)
     # ----------------------------------------------------
+    col_widths = [Mm(39.06), Mm(41.99), Mm(43.46), Mm(43.46)]
+    table = doc.add_table(rows=7, cols=4)
+    table.style = "Table Grid"
+    table.autofit = False
+
+    for row in table.rows:
+        for idx, cell in enumerate(row.cells):
+            cell.width = col_widths[idx]
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+    # 데이터 매핑 배열 정의
     rows_data = [
         ("운행일시", data_dict["date"], "유류비(원)", f"{data_dict['fuel_cost']:,}"),
         ("출장지", data_dict["path"], "통행료", f"{data_dict['toll']:,}"),
@@ -381,66 +314,78 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         ("유가(원,오피넷기준)", f"{data_dict['oil_price']:,}", "총 계", f"{data_dict['total_cost']:,}"),
     ]
 
-    for idx, (l1, v1, l2, v2) in enumerate(rows_data, start=1):
+    # 데이터 행 채우기 및 중앙 정렬 서식 지정
+    for idx, (l1, v1, l2, v2) in enumerate(rows_data):
         cells = table.rows[idx].cells
-        
-        # 텍스트 포맷팅 공통 함수
-        def format_cell_text(cell, text, font_name, size, bold, is_label=False):
-            cell.text = ""
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER # 중앙 정렬
-            p.paragraph_format.space_before = Pt(4)
-            p.paragraph_format.space_after = Pt(4)
-            r = p.add_run(text)
-            set_run_font(r, font_name, size, bold)
-            if is_label:
-                set_cell_background(cell, "F2F2F2") # 라벨 영역에 연한 배경색 주입 가능 (원할 경우)
 
-        format_cell_text(cells[0], l1, "맑은 고딕", 11, False)
-        format_cell_text(cells[1], str(v1), "함초롬바탕", 10, False)
-        format_cell_text(cells[2], l2, "맑은 고딕", 11, True) # 오른쪽 라벨 굵게
-        format_cell_text(cells[3], str(v2), "함초롬바탕", 10, False)
+        # 왼쪽 라벨 (1열) -> 배경색 적용
+        cells[0].text = ""
+        p0 = cells[0].paragraphs[0]
+        p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p0.add_run(l1), "맑은 고딕", 11, bold=False)
+        set_cell_background(cells[0], "E0E0E0") # 요구사항: 제목과 동일한 배경색 주입
+
+        # 왼쪽 데이터 (2열)
+        cells[1].text = ""
+        p1 = cells[1].paragraphs[0]
+        p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p1.add_run(str(v1)), "함초롬바탕", 10, bold=False)
+
+        # 오른쪽 라벨 (3열) -> 배경색 및 굵게 적용
+        cells[2].text = ""
+        p2 = cells[2].paragraphs[0]
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p2.add_run(l2), "맑은 고딕", 11, bold=True)
+        set_cell_background(cells[2], "E0E0E0") # 요구사항: 제목과 동일한 배경색 주입
+
+        # 오른쪽 데이터 (4열)
+        cells[3].text = ""
+        p3 = cells[3].paragraphs[0]
+        p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p3.add_run(str(v2)), "함초롬바탕", 10, bold=False)
 
     # ----------------------------------------------------
-    # 6행: 경로 네이버지도 스크린샷 (4열 전체 병합)
+    # 3. 경로 네이버지도 스크린샷 행 처리 (5번째 행)
     # ----------------------------------------------------
-    map_cell = table.rows[6].cells[0]
-    for c in table.rows[6].cells[1:]:
+    map_cell = table.rows[5].cells[0]
+    for c in table.rows[5].cells[1:]:
         map_cell = map_cell.merge(c)
+    remove_cell_margins(map_cell)
     
     map_p = map_cell.paragraphs[0]
     map_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    map_p.paragraph_format.space_before = Pt(6)
-    map_p.paragraph_format.space_after = Pt(6)
+    map_p.paragraph_format.space_before = Pt(4)
+    map_p.paragraph_format.space_after = Pt(4)
     
     if map_image_path and os.path.exists(map_image_path):
-        map_p.add_run().add_picture(map_image_path, width=Mm(155)) # 한 페이지에 딱 붙도록 너비 최적화
+        # 요구사항: 1페이지 내에 딱 맞춰 정착되도록 너비 스케일 다운 제어 (145mm)
+        map_p.add_run().add_picture(map_image_path, width=Mm(145)) 
     else:
-        r = map_p.add_run("[경로 네이버지도 스크린샷 위치]")
+        r = map_p.add_run("경로 네이버지도 스크린샷")
         set_run_font(r, "맑은 고딕", 11, bold=False)
 
     # ----------------------------------------------------
-    # 7행: 오피넷 스크린샷 (4열 전체 병합)
+    # 4. 오피넷 스크린샷 행 처리 (6번째 행)
     # ----------------------------------------------------
-    opinet_cell = table.rows[7].cells[0]
-    for c in table.rows[7].cells[1:]:
+    opinet_cell = table.rows[6].cells[0]
+    for c in table.rows[6].cells[1:]:
         opinet_cell = opinet_cell.merge(c)
-        
+    remove_cell_margins(opinet_cell)
+    
     opinet_p = opinet_cell.paragraphs[0]
     opinet_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    opinet_p.paragraph_format.space_before = Pt(6)
-    opinet_p.paragraph_format.space_after = Pt(6)
+    opinet_p.paragraph_format.space_before = Pt(4)
+    opinet_p.paragraph_format.space_after = Pt(4)
     
     if opinet_image_path and os.path.exists(opinet_image_path):
-        opinet_p.add_run().add_picture(opinet_image_path, width=Mm(155))
+        # 요구사항: 1페이지 내에 딱 맞춰 정착되도록 너비 스케일 다운 제어 (145mm)
+        opinet_p.add_run().add_picture(opinet_image_path, width=Mm(145))
     else:
-        r = opinet_p.add_run("[오피넷 스크린샷 위치]")
+        r = opinet_p.add_run("오피넷 스크린샷")
         set_run_font(r, "맑은 고딕", 11, bold=False)
 
-    # ----------------------------------------------------
-    # 전 외곽 굵은 테두리 및 내부 점선/실선 처리 기입
-    # ----------------------------------------------------
-    apply_table_outer_borders(table)
+    # 본문 테이블의 전면 외곽 테두리 굵게 설정 기입
+    apply_main_table_outer_borders(table)
 
     output = "출장지출증빙_보고서.docx"
     doc.save(output)
@@ -507,7 +452,6 @@ if "report_ready" not in st.session_state:
 if st.button("보고서 생성", use_container_width=True):
     db_info = DESTINATION_DB[dest_selection]
     round_distance = db_info["round_dist"]
-
     efficiency = 10.06 if "휘발유" in fuel_selection else 10.16
 
     with st.spinner("오피넷 조회 중..."):
@@ -538,7 +482,6 @@ if st.button("보고서 생성", use_container_width=True):
 
 if st.session_state.report_ready:
     st.success("보고서 생성이 완료되었습니다.")
-
     report_file = st.session_state.report_file
     opinet_img = st.session_state.opinet_img
     matched_img_file = st.session_state.matched_img_file
