@@ -121,6 +121,7 @@ def wait_result_update(page):
 
 def capture_opinet_print_page(target_date_obj, fuel_type):
     filename = "opinet_capture.png"
+    # 크롤링 실패 대비 기본값 설정
     oil_price = 1640 if "휘발유" in fuel_type else 1510
     try:
         with sync_playwright() as p:
@@ -148,13 +149,32 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 raise Exception("조회 버튼 실패")
             wait_result_update(page)
 
+            # ----------------------------------------------------
+            # 수정 사항: 선택된 연료 종류별 정밀 유가 추출 로직 추가
+            # ----------------------------------------------------
             try:
-                text = page.locator("table td").first.inner_text()
-                extracted_num = int("".join(filter(str.isdigit, text)))
-                if extracted_num > 1000:
-                    oil_price = extracted_num
-            except:
-                pass
+                # 테이블 내부의 모든 텍스트 요소를 배열로 가져옴
+                cell_texts = page.evaluate("""
+                    () => Array.from(document.querySelectorAll('table td, table th')).map(el => el.innerText.trim())
+                """)
+                
+                target_keyword = "보통휘발유" if "휘발유" in fuel_type else "자동차용경유"
+                
+                # 유가 표에서 해당 연료명의 위치를 찾고 바로 그 다음에 나오는 숫자를 파싱
+                for i, text in enumerate(cell_texts):
+                    if target_keyword in text:
+                        # 다음 혹은 그 인근 셀에서 숫자 추출 시도
+                        for j in range(1, 4):
+                            if i + j < len(cell_texts):
+                                next_text = cell_texts[i + j]
+                                num_str = "".join(filter(str.isdigit, next_text))
+                                if num_str and int(num_str) > 1000:
+                                    oil_price = int(num_str)
+                                    break
+                        if oil_price: 
+                            break
+            except Exception as ex:
+                print(f"텍스트 기반 가격 추출 실패: {ex}")
 
             print_page = None
             try:
@@ -192,7 +212,7 @@ def find_matched_map_image(dest_name):
 # DOC 서식 조작용 헬퍼 함수
 # =========================
 def set_run_font(run, font_name, size_pt, bold=False):
-    """지정된 글씨체(맑은 고딕)를 완벽하게 강제 매핑"""
+    """지정된 글씨체(맑은 고딕)를 문서상에 확실히 강제 설정"""
     run.font.size = Pt(size_pt)
     run.font.bold = bold
     run.font.name = font_name
@@ -201,7 +221,6 @@ def set_run_font(run, font_name, size_pt, bold=False):
     if rFonts is None:
         rFonts = OxmlElement('w:rFonts')
         rPr.append(rFonts)
-    # 한글 및 아시아 서체 인식을 위해 eastAsia 속성에 명시적으로 지정
     rFonts.set(qn('w:eastAsia'), font_name)
     rFonts.set(qn('w:ascii'), font_name)
     rFonts.set(qn('w:hAnsi'), font_name)
@@ -211,7 +230,7 @@ def set_cell_background(cell, hex_color):
     cell._tc.get_or_add_tcPr().append(shading_elm)
 
 def apply_title_table_borders(cell):
-    """제목 표: 위아래 이중선, 좌우 테두리 없음"""
+    """제목 표: 위아래 이중선, 좌우 테두리 제거"""
     tcPr = cell._tc.get_or_add_tcPr()
     tcBorders = parse_xml(
         '<w:tcBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -219,12 +238,12 @@ def apply_title_table_borders(cell):
         '<w:left w:val="none"/>'
         '<w:bottom w:val="double" w:sz="12" w:space="0" w:color="000000"/>'
         '<w:right w:val="none"/>'
-                '</w:tcBorders>'
+        '</w:tcBorders>'
     )
     tcPr.append(tcBorders)
 
 def apply_main_table_outer_borders(table):
-    """본문 표: 외곽선 굵게(1.5pt), 내부 실선"""
+    """본문 표: 외곽선 굵게(1.5pt), 내부 연한 실선"""
     tblPr = table._element.xpath('w:tblPr')
     if tblPr:
         borders = parse_xml(
@@ -240,7 +259,7 @@ def apply_main_table_outer_borders(table):
         tblPr[0].append(borders)
 
 def remove_cell_margins(cell):
-    """셀 내부 기본 마진을 제로로 만들어 페이지 넘침 완벽 제거"""
+    """셀 내부 마진을 강제로 제로(0)화하여 2페이지 넘침 원천 제거"""
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
         '<w:tcMar xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -259,7 +278,7 @@ def remove_cell_margins(cell):
 def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capture.png"):
     doc = Document()
 
-    # 상하 마진 압축 설정 (위아래 10mm, 좌우 15mm)
+    # 상하 여백 극단적 압축 (상하 10mm, 좌우 15mm)
     for section in doc.sections:
         section.top_margin = Mm(10)
         section.bottom_margin = Mm(10)
@@ -278,21 +297,19 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     remove_cell_margins(title_cell)
     
-    set_cell_background(title_cell, "E0E0E0")  # 배경 회색 변경
-    apply_title_table_borders(title_cell)     # 좌우 테두리 제거 + 위아래 이중선
+    set_cell_background(title_cell, "E0E0E0")  
+    apply_title_table_borders(title_cell)     
     
     title_p = title_cell.paragraphs[0]
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    # 요구사항: 제목 표의 위아래 여백 최소화 (0pt)
     title_p.paragraph_format.space_before = Pt(0)
     title_p.paragraph_format.space_after = Pt(0)
     title_p.paragraph_format.line_spacing = 1.0
     
     title_run = title_p.add_run("시외출장 지출(개인차량) 증빙 내역")
-    # 요구사항: 제목 글씨 크기 확대 (24pt) + 글씨체 '맑은 고딕'
     set_run_font(title_run, "맑은 고딕", 24, bold=True) 
 
-    # 표 사이 최소 여백 단락
+    # 최소 간격 공백 단락
     spacer = doc.add_paragraph()
     spacer.paragraph_format.space_before = Pt(4)
     spacer.paragraph_format.space_after = Pt(0)
@@ -318,11 +335,11 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         ("유가(원,오피넷기준)", f"{data_dict['oil_price']:,}", "총 계", f"{data_dict['total_cost']:,}"),
     ]
 
-    # 요구사항 반영: 모든 라벨 및 데이터 값을 '맑은 고딕' 서체로 일체화
+    # 모든 항목 '맑은 고딕' 적용 및 오른쪽 라벨 굵게(Bold) 반영
     for idx, (l1, v1, l2, v2) in enumerate(rows_data):
         cells = table.rows[idx].cells
 
-        # 1열: 왼쪽 라벨 영역 -> 제목과 똑같은 회색 배경색 및 맑은 고딕
+        # 1열: 왼쪽 라벨 영역 (굵게)
         cells[0].text = ""
         p0 = cells[0].paragraphs[0]
         p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -331,7 +348,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         set_run_font(p0.add_run(l1), "맑은 고딕", 11, bold=True)
         set_cell_background(cells[0], "E0E0E0") 
 
-        # 2열: 왼쪽 데이터 영역 -> 맑은 고딕
+        # 2열: 왼쪽 데이터 영역
         cells[1].text = ""
         p1 = cells[1].paragraphs[0]
         p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -339,7 +356,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         p1.paragraph_format.space_after = Pt(2)
         set_run_font(p1.add_run(str(v1)), "맑은 고딕", 10, bold=False)
 
-        # 3열: 오른쪽 라벨 영역 -> 제목과 똑같은 회색 배경색 및 맑은 고딕
+        # 3열: 오른쪽 라벨 영역 (수정 사항: 유류비, 통행료, 일비, 식비, 총계 굵게 설정)
         cells[2].text = ""
         p2 = cells[2].paragraphs[0]
         p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -348,7 +365,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         set_run_font(p2.add_run(l2), "맑은 고딕", 11, bold=True)
         set_cell_background(cells[2], "E0E0E0") 
 
-        # 4열: 오른쪽 데이터 영역 -> 맑은 고딕
+        # 4열: 오른쪽 데이터 영역
         cells[3].text = ""
         p3 = cells[3].paragraphs[0]
         p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -357,7 +374,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         set_run_font(p3.add_run(str(v2)), "맑은 고딕", 10, bold=False)
 
     # ----------------------------------------------------
-    # 3. 경로 네이버지도 스크린샷 행 처리 (크기 대폭 하향 조정)
+    # 3. 경로 네이버지도 스크린샷 행 처리 (2페이지 넘침 완전 차단 크기)
     # ----------------------------------------------------
     map_cell = table.rows[5].cells[0]
     for c in table.rows[5].cells[1:]:
@@ -370,14 +387,14 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     map_p.paragraph_format.space_after = Pt(1)
     
     if map_image_path and os.path.exists(map_image_path):
-        # 2페이지 넘침 원천 차단을 위해 가로 크기를 안전하게 Mm(105)로 축소 조정
+        # 1페이지 안에 안전하게 쏙 들어가도록 가로 크기를 Mm(105)로 고정 제한
         map_p.add_run().add_picture(map_image_path, width=Mm(105)) 
     else:
         r = map_p.add_run("경로 네이버지도 스크린샷")
         set_run_font(r, "맑은 고딕", 11, bold=False)
 
     # ----------------------------------------------------
-    # 4. 오피넷 스크린샷 행 처리 (크기 대폭 하향 조정)
+    # 4. 오피넷 스크린샷 행 처리 (2페이지 넘침 완전 차단 크기)
     # ----------------------------------------------------
     opinet_cell = table.rows[6].cells[0]
     for c in table.rows[6].cells[1:]:
@@ -390,13 +407,12 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     opinet_p.paragraph_format.space_after = Pt(1)
     
     if opinet_image_path and os.path.exists(opinet_image_path):
-        # 2페이지 넘침 원천 차단을 위해 가로 크기를 안전하게 Mm(105)로 축소 조정
+        # 1페이지 안에 안전하게 쏙 들어가도록 가로 크기를 Mm(105)로 고정 제한
         opinet_p.add_run().add_picture(opinet_image_path, width=Mm(105))
     else:
         r = opinet_p.add_run("오피넷 스크린샷")
         set_run_font(r, "맑은 고딕", 11, bold=False)
 
-    # 외곽 테두리 굵게 처리 적용
     apply_main_table_outer_borders(table)
 
     output = "출장지출증빙_보고서.docx"
