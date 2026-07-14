@@ -176,7 +176,7 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 
                 if extracted_price:
                     try:
-                        oil_price = int(float(extracted_price.replace(",", "")))
+                        oil_price = float(extracted_price.replace(",", ""))
                     except:
                         pass
             except Exception as ex:
