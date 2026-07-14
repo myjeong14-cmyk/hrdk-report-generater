@@ -151,34 +151,41 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
             # 표 구조에 맞춘 아랫행(세로 방향) 유가 파싱 로직
             try:
                 target_keyword = "보통휘발유" if "휘발유" in fuel_type else "자동차용경유"
-                
+
                 extracted_price = page.evaluate(f"""
                     () => {{
-                        const rows = Array.from(document.querySelectorAll('table tr'));
-                        let colIndex = -1;
-                        let foundPrice = null;
-                        
-                        for (let r = 0; r < rows.length; r++) {{
-                            const cells = Array.from(rows[r].querySelectorAll('th, td'));
-                            colIndex = cells.findIndex(c => c.innerText.trim().includes('{target_keyword}'));
-                            
-                            if (colIndex !== -1 && r + 1 < rows.length) {{
-                                const nextRowCells = Array.from(rows[r + 1].querySelectorAll('th, td'));
-                                if (nextRowCells[colIndex]) {{
-                                    foundPrice = nextRowCells[colIndex].innerText.trim();
-                                    break;
+                        const tables = Array.from(document.querySelectorAll('table'));
+                        const priceRe = /^[0-9][0-9,]*(\\.[0-9]+)?$/;
+
+                        for (const table of tables) {{
+                            const rows = Array.from(table.querySelectorAll('tr'));
+
+                            for (let r = 0; r < rows.length; r++) {{
+                                const cells = Array.from(rows[r].querySelectorAll('th, td'));
+                                const colIndex = cells.findIndex(c => c.innerText.trim().includes('{target_keyword}'));
+
+                                if (colIndex !== -1 && r + 1 < rows.length) {{
+                                    const nextRowCells = Array.from(rows[r + 1].querySelectorAll('th, td'));
+                                    if (nextRowCells[colIndex]) {{
+                                        const text = nextRowCells[colIndex].innerText.trim();
+                                        if (priceRe.test(text)) {{
+                                            return text;
+                                        }}
+                                    }}
                                 }}
                             }}
                         }}
-                        return foundPrice;
+                        return null;
                     }}
                 """)
-                
+
                 if extracted_price:
                     try:
                         oil_price = float(extracted_price.replace(",", ""))
                     except:
                         pass
+                else:
+                    st.warning(f"오피넷에서 실제 유가를 찾지 못해 기본값({oil_price}원)을 사용했습니다. 표 구조가 예상과 다를 수 있습니다.")
             except Exception as ex:
                 print(f"세로축 가격 파싱 실패: {ex}")
 
@@ -445,7 +452,7 @@ div.stDownloadButton > button:hover {
 
 col1, col2 = st.columns(2)
 with col1:
-    run_date = st.date_input("운행일시", datetime.today())
+    run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
 with col2:
     dest_selection = st.selectbox("도착지", list(DESTINATION_DB.keys()))
 
