@@ -198,8 +198,7 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
 
                 if extracted_price:
                     try:
-                        raw_price = float(extracted_price.replace(",", ""))
-                        oil_price = int(raw_price // 10) * 10  # 1원 단위 절사 (예: 1882.72 -> 1880)
+                        oil_price = float(extracted_price.replace(",", ""))
                     except:
                         pass
                 else:
@@ -522,7 +521,8 @@ if st.button("보고서 생성", use_container_width=True):
         opinet_img, oil_price = capture_opinet_print_page(run_date, fuel_selection)
 
     fuel_cost = int(round_distance / efficiency * oil_price)
-    total_cost = fuel_cost + toll_input + daily_fee + meal_fee
+    total_cost_raw = fuel_cost + toll_input + daily_fee + meal_fee
+    total_cost = int(total_cost_raw // 10) * 10  # 총계만 1원 단위 절사 (예: 1882.72 -> 1880)
 
     report_data = {
         "date": run_date.strftime("%Y년 %m월 %d일"),
