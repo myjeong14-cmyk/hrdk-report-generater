@@ -121,7 +121,13 @@ def wait_result_update(page):
 
 def capture_opinet_print_page(target_date_obj, fuel_type):
     filename = "opinet_capture.png"
-    oil_price = 1640 if "휘발유" in fuel_type else 1510
+    if "LPG" in fuel_type:
+        oil_price = 1130
+    elif "경유" in fuel_type:
+        oil_price = 1510
+    else:
+        # 휘발유, 하이브리드, 플러그인 하이브리드는 모두 보통휘발유 가격 기준
+        oil_price = 1640
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -134,7 +140,12 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 viewport={"width": 1400, "height": 950}
             )
             page = context.new_page()
-            page.goto("https://www.opinet.co.kr/user/dopospdrg/dopOsPdrgSelect.do", wait_until="domcontentloaded", timeout=20000)
+            if "LPG" in fuel_type:
+                target_url = "https://www.opinet.co.kr/user/dopvsavsel/dopVsAvselSelect.do"
+            else:
+                target_url = "https://www.opinet.co.kr/user/dopospdrg/dopOsPdrgSelect.do"
+
+            page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
             page.wait_for_timeout(2000)
 
             close_popups(page)
@@ -150,7 +161,13 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
 
             # 표 구조에 맞춘 아랫행(세로 방향) 유가 파싱 로직
             try:
-                target_keyword = "보통휘발유" if "휘발유" in fuel_type else "자동차용경유"
+                if "LPG" in fuel_type:
+                    target_keyword = "자동차부탄"
+                elif "경유" in fuel_type:
+                    target_keyword = "자동차용경유"
+                else:
+                    # 휘발유, 하이브리드, 플러그인 하이브리드는 모두 보통휘발유 가격 기준
+                    target_keyword = "보통휘발유"
 
                 extracted_price = page.evaluate(f"""
                     () => {{
@@ -181,7 +198,8 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
 
                 if extracted_price:
                     try:
-                        oil_price = float(extracted_price.replace(",", ""))
+                        raw_price = float(extracted_price.replace(",", ""))
+                        oil_price = int(raw_price // 10) * 10  # 1원 단위 절사 (예: 1882.72 -> 1880)
                     except:
                         pass
                 else:
@@ -458,7 +476,16 @@ with col2:
 
 col3, col4 = st.columns(2)
 with col3:
-    fuel_selection = st.radio("연료", ["휘발유 (10.06 km/ℓ)", "경유 (10.16 km/ℓ)"])
+    fuel_selection = st.radio(
+        "연료",
+        [
+            "휘발유 (10.06 km/ℓ)",
+            "경유 (10.16 km/ℓ)",
+            "LPG (7.87 km/ℓ)",
+            "하이브리드 (15.37 km/ℓ)",
+            "플러그인 하이브리드 (10.61 km/ℓ)",
+        ]
+    )
 with col4:
     toll_input = st.number_input("통행료", 0, step=100)
 
@@ -478,7 +505,18 @@ if "report_ready" not in st.session_state:
 if st.button("보고서 생성", use_container_width=True):
     db_info = DESTINATION_DB[dest_selection]
     round_distance = db_info["round_dist"]
-    efficiency = 10.06 if "휘발유" in fuel_selection else 10.16
+    if "휘발유" in fuel_selection and "하이브리드" not in fuel_selection:
+        efficiency = 10.06
+    elif "경유" in fuel_selection:
+        efficiency = 10.16
+    elif "LPG" in fuel_selection:
+        efficiency = 7.87
+    elif "플러그인 하이브리드" in fuel_selection:
+        efficiency = 10.61
+    elif "하이브리드" in fuel_selection:
+        efficiency = 15.37
+    else:
+        efficiency = 10.06
 
     with st.spinner("오피넷 조회 중..."):
         opinet_img, oil_price = capture_opinet_print_page(run_date, fuel_selection)
