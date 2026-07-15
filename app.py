@@ -467,7 +467,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
 # =========================
 st.set_page_config(page_title="출장 지출 증빙", layout="centered")
 
-st.title("시외출장 보고서 생성기")
+st.title("시외출장 지출보고서 생성기")
 
 st.markdown("""
 <style>
