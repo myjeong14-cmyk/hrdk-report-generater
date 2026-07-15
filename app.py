@@ -119,6 +119,23 @@ def wait_result_update(page):
         pass
     time.sleep(3)
 
+def navigate_via_menu(page, menu_text, submenu_text):
+    close_popups(page)
+    try:
+        page.get_by_text(menu_text, exact=False).first.hover(timeout=3000)
+        page.wait_for_timeout(1000)
+    except:
+        pass
+
+    close_popups(page)
+    try:
+        page.get_by_text(submenu_text, exact=False).first.click(force=True, timeout=5000)
+        page.wait_for_load_state("domcontentloaded", timeout=15000)
+        return True
+    except:
+        return False
+
+
 def capture_opinet_print_page(target_date_obj, fuel_type):
     filename = "opinet_capture.png"
     if "LPG" in fuel_type:
@@ -141,11 +158,21 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
             )
             page = context.new_page()
             if "LPG" in fuel_type:
-                target_url = "https://www.opinet.co.kr/user/dopvsavsel/dopVsAvselSelect.do"
+                # 국내유가통계 > 자동차충전소 메뉴를 거쳐서 진입 (다른 연료와 동일한 방식으로 캡처)
+                page.goto("https://www.opinet.co.kr", wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(2000)
+                close_popups(page)
+
+                if not navigate_via_menu(page, "국내유가통계", "자동차충전소"):
+                    # 메뉴 진입 실패 시 직접 URL로 폴백
+                    page.goto(
+                        "https://www.opinet.co.kr/user/dopvsavsel/dopVsAvselSelect.do",
+                        wait_until="domcontentloaded",
+                        timeout=20000
+                    )
             else:
                 target_url = "https://www.opinet.co.kr/user/dopospdrg/dopOsPdrgSelect.do"
-
-            page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
+                page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
             page.wait_for_timeout(2000)
 
             close_popups(page)
