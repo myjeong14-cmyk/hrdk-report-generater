@@ -4,5 +4,6 @@
 <접속 url>
 https://hrdk-report-generater-eqxyse95p2vw7seoa5ngku.streamlit.app/
 
-<참고 이미지>
+
+
 <img width="812" height="617" alt="image" src="https://github.com/user-attachments/assets/e383a46a-40be-4482-a652-ae77321fcb64" />
