@@ -486,19 +486,21 @@ def apply_title_table_borders(cell):
     tcPr.append(tcBorders)
 
 def apply_main_table_outer_borders(table):
-    tblPr = table._element.xpath('w:tblPr')
-    if tblPr:
-        borders = parse_xml(
-            '<w:tblBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-            '<w:top w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
-            '<w:left w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
-            '<w:bottom w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
-            '<w:right w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
-            '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="A0A0A0"/>'
-            '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="A0A0A0"/>'
-            '</w:tblBorders>'
-        )
-        tblPr[0].append(borders)
+    tblPr = table._tbl.tblPr
+    borders = parse_xml(
+        '<w:tblBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:top w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+        '<w:left w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+        '<w:bottom w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+        '<w:right w:val="single" w:sz="12" w:space="0" w:color="000000"/>'
+        '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="A0A0A0"/>'
+        '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="A0A0A0"/>'
+        '</w:tblBorders>'
+    )
+    tblPr.insert_element_before(
+        borders, 'w:shd', 'w:tblLayout', 'w:tblCellMar', 'w:tblLook',
+        'w:tblCaption', 'w:tblDescription', 'w:tblPrChange',
+    )
 
 def remove_cell_margins(cell):
     tcPr = cell._tc.get_or_add_tcPr()
@@ -512,6 +514,43 @@ def remove_cell_margins(cell):
         '</w:tcMar>'
     )
     tcPr.append(tcMar)
+
+def fix_table_width_and_indent(table, width_length):
+    """표의 왼쪽 들여쓰기를 0으로 고정하고, 전체 너비를 정확히 고정값으로 지정한다.
+    표 스타일(Table Grid 등)마다 기본 들여쓰기/너비 계산 방식이 달라
+    제목 표와 본문 표의 좌우 테두리 위치가 어긋나 보이는 문제를 방지하기 위함.
+    OOXML의 w:tblPr 자식 요소 순서 규칙(tblW -> jc -> tblCellSpacing -> tblInd
+    -> tblBorders -> shd -> tblLayout ...)을 지켜서 삽입해야 워드에서
+    "복구" 경고 없이 정상적으로 열린다."""
+    tblPr = table._tbl.tblPr
+    width_twips = str(int(width_length.twips))
+
+    # python-docx가 표 생성 시 기본으로 넣어두는 <w:tblW w:type="auto"/> 를 제거하고
+    # (하나의 tblPr에 tblW가 2개 있으면 스키마 위반으로 워드에서 "복구" 경고가 뜸)
+    # 우리가 지정한 고정 너비 값으로 교체한다.
+    for old_tblW in tblPr.findall(qn('w:tblW')):
+        tblPr.remove(old_tblW)
+
+    tblW = OxmlElement('w:tblW')
+    tblW.set(qn('w:w'), width_twips)
+    tblW.set(qn('w:type'), 'dxa')
+    tblPr.insert_element_before(
+        tblW, 'w:jc', 'w:tblCellSpacing', 'w:tblInd', 'w:tblBorders',
+        'w:shd', 'w:tblLayout', 'w:tblCellMar', 'w:tblLook',
+        'w:tblCaption', 'w:tblDescription', 'w:tblPrChange',
+    )
+
+    tblInd = OxmlElement('w:tblInd')
+    tblInd.set(qn('w:w'), '0')
+    tblInd.set(qn('w:type'), 'dxa')
+    for old_tblInd in tblPr.findall(qn('w:tblInd')):
+        tblPr.remove(old_tblInd)
+    tblPr.insert_element_before(
+        tblInd, 'w:tblBorders', 'w:shd', 'w:tblLayout', 'w:tblCellMar',
+        'w:tblLook', 'w:tblCaption', 'w:tblDescription', 'w:tblPrChange',
+    )
+
+    tblPr.get_or_add_tblLayout().type = 'fixed'
 
 
 # =========================
@@ -541,6 +580,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     title_cell.width = total_table_width
     title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     remove_cell_margins(title_cell)
+    fix_table_width_and_indent(title_table, total_table_width)
     
     set_cell_background(title_cell, "E0E0E0")  
     apply_title_table_borders(title_cell)     
@@ -563,6 +603,7 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     table = doc.add_table(rows=7, cols=4)
     table.style = "Table Grid"
     table.autofit = False
+    fix_table_width_and_indent(table, total_table_width)
 
     for row in table.rows:
         for idx, cell in enumerate(row.cells):
