@@ -515,6 +515,20 @@ def remove_cell_margins(cell):
     )
     tcPr.append(tcMar)
 
+def set_section_vertical_center(section):
+    """섹션의 내용을 위/아래 여백 사이에서 세로 중앙 정렬한다.
+    (표 내용이 페이지를 다 채우지 못할 때 위쪽으로 치우쳐 보이는 것을 방지)"""
+    sectPr = section._sectPr
+    for old in sectPr.findall(qn('w:vAlign')):
+        sectPr.remove(old)
+    vAlign = OxmlElement('w:vAlign')
+    vAlign.set(qn('w:val'), 'center')
+    sectPr.insert_element_before(
+        vAlign, 'w:noEndnote', 'w:titlePg', 'w:textDirection', 'w:bidi',
+        'w:rtlGutter', 'w:docGrid', 'w:printerSettings', 'w:sectPrChange',
+    )
+
+
 def fix_table_width_and_indent(table, width_length):
     """표의 왼쪽 들여쓰기를 0으로 고정하고, 전체 너비를 정확히 고정값으로 지정한다.
     표 스타일(Table Grid 등)마다 기본 들여쓰기/너비 계산 방식이 달라
@@ -570,6 +584,9 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         section.bottom_margin = Mm(10)
         section.left_margin = Mm(15)
         section.right_margin = Mm(15)
+        # 표 내용이 페이지 전체를 채우지 못해 위쪽으로 치우쳐 보이는 문제를 방지:
+        # 내용을 위/아래 여백 사이에서 세로 중앙에 배치되도록 설정
+        set_section_vertical_center(section)
 
     total_table_width = Mm(180.0)
     col_widths = [Mm(35.0), Mm(55.0), Mm(35.0), Mm(55.0)]
