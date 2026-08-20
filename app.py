@@ -1,6 +1,9 @@
 import streamlit as st
 import time
 import os
+import json
+import base64
+import requests
 from datetime import datetime
 from docx import Document
 from docx.shared import Inches, Pt, Mm
@@ -10,7 +13,134 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement, parse_xml
 from playwright.sync_api import sync_playwright
 
-DESTINATION_DB = {
+# =========================
+# 도착지 추가 기능 - 경로/상수
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MAP_DIR = os.path.join(BASE_DIR, "map")
+CUSTOM_DEST_FILE = os.path.join(BASE_DIR, "custom_destinations.json")
+ADD_DEST_OPTION = "➕ 도착지 추가하기"
+
+# =========================
+# GitHub 자동 커밋 설정
+# =========================
+GITHUB_OWNER = "myjeong14-cmyk"
+GITHUB_REPO = "hrdk-report-generater"
+GITHUB_BRANCH = "main"
+GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents"
+GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{GITHUB_BRANCH}"
+
+
+def _github_token():
+    """Streamlit secrets 또는 환경변수에서 GitHub 토큰을 읽는다."""
+    try:
+        if "GITHUB_TOKEN" in st.secrets:
+            return st.secrets["GITHUB_TOKEN"]
+    except Exception:
+        pass
+    return os.environ.get("GITHUB_TOKEN", "")
+
+
+def _github_headers():
+    token = _github_token()
+    if not token:
+        return None
+    return {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+    }
+
+
+def github_commit_file(path_in_repo, content_bytes, commit_message):
+    """저장소의 path_in_repo 경로에 파일을 생성/갱신(commit)한다."""
+    headers = _github_headers()
+    if not headers:
+        return False, "GITHUB_TOKEN이 설정되어 있지 않아 GitHub에 커밋할 수 없습니다."
+
+    url = f"{GITHUB_API_BASE}/{path_in_repo}"
+    try:
+        get_resp = requests.get(url, headers=headers, params={"ref": GITHUB_BRANCH}, timeout=10)
+        sha = get_resp.json().get("sha") if get_resp.status_code == 200 else None
+
+        payload = {
+            "message": commit_message,
+            "content": base64.b64encode(content_bytes).decode("utf-8"),
+            "branch": GITHUB_BRANCH,
+        }
+        if sha:
+            payload["sha"] = sha
+
+        put_resp = requests.put(url, headers=headers, json=payload, timeout=15)
+        if put_resp.status_code in (200, 201):
+            return True, None
+        return False, f"GitHub 커밋 실패 ({put_resp.status_code}): {put_resp.text[:300]}"
+    except Exception as e:
+        return False, f"GitHub 커밋 중 오류: {e}"
+
+
+def github_fetch_file(path_in_repo):
+    """저장소에서 path_in_repo 경로의 파일 내용을 raw bytes로 가져온다. 실패 시 None."""
+    try:
+        resp = requests.get(f"{GITHUB_RAW_BASE}/{path_in_repo}", timeout=10)
+        if resp.status_code == 200:
+            return resp.content
+    except Exception:
+        pass
+    return None
+
+
+def load_custom_destinations():
+    """사용자가 추가한 도착지 목록을 불러온다. GitHub 원본을 우선 조회하고,
+    실패 시 로컬 캐시 파일을 사용한다."""
+    remote_bytes = github_fetch_file("custom_destinations.json")
+    if remote_bytes is not None:
+        try:
+            data = json.loads(remote_bytes.decode("utf-8"))
+            # 로컬에도 캐시해서 같은 세션 내에서는 재조회 없이 사용 가능하게 함
+            try:
+                with open(CUSTOM_DEST_FILE, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+            return data
+        except Exception:
+            pass
+
+    if os.path.exists(CUSTOM_DEST_FILE):
+        try:
+            with open(CUSTOM_DEST_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_new_destination(name, region, dist):
+    """새 도착지를 DESTINATION_DB 규칙에 맞게 계산하여 저장하고 GitHub에 커밋한다."""
+    dist = float(dist)
+    entry = {
+        "dist": dist,
+        "round_dist": dist * 2,
+        "path": f"안동→{region}→안동",
+    }
+    custom = load_custom_destinations()
+    custom[name] = entry
+
+    content_str = json.dumps(custom, ensure_ascii=False, indent=2)
+
+    # 로컬 캐시 저장 (같은 세션에서 즉시 반영되도록)
+    with open(CUSTOM_DEST_FILE, "w", encoding="utf-8") as f:
+        f.write(content_str)
+
+    ok, err = github_commit_file(
+        "custom_destinations.json",
+        content_str.encode("utf-8"),
+        f"도착지 추가: {name}",
+    )
+    return entry, ok, err
+
+
+BASE_DESTINATION_DB = {
     "경북소프트웨어마이스터고등학교": {"dist": 47, "round_dist": 94, "path": "안동→의성→안동"},
     "경북에너지기술고등학교": {"dist": 73, "round_dist": 146, "path": "안동→상주→안동"},
     "경북자연과학고등학교": {"dist": 84, "round_dist": 168, "path": "안동→상주→안동"},
@@ -34,6 +164,9 @@ DESTINATION_DB = {
     "한국폴리텍대학 영주캠퍼스": {"dist": 35, "round_dist": 70, "path": "안동→영주→안동"},
     "현대건설중장비직업전문학원": {"dist": 32, "round_dist": 64, "path": "안동→영주→안동"}
 }
+
+# 기본 도착지 DB + 사용자가 추가한 도착지 DB 병합
+DESTINATION_DB = {**BASE_DESTINATION_DB, **load_custom_destinations()}
 
 # =========================
 # 크롤링 및 팝업 제어
@@ -187,7 +320,9 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                 raise Exception("조회 버튼 실패")
             wait_result_update(page)
 
-            # 표 구조에 맞춘 아랫행(세로 방향) 유가 파싱 로직
+            # 표 구조에 맞춘 유가 파싱 로직
+            # 오피넷 표에 날짜가 여러 행(예: 16일, 17일)으로 함께 나오는 경우가 있어,
+            # 반드시 조회한 날짜(target_date_obj)와 일치하는 행에서만 값을 가져온다.
             try:
                 if "LPG" in fuel_type:
                     target_keyword = "자동차부탄"
@@ -197,38 +332,78 @@ def capture_opinet_print_page(target_date_obj, fuel_type):
                     # 휘발유, 하이브리드, 플러그인 하이브리드는 모두 보통휘발유 가격 기준
                     target_keyword = "보통휘발유"
 
-                extracted_price = page.evaluate(f"""
+                y, m, d = target_date_obj.year, target_date_obj.month, target_date_obj.day
+                date_candidates = [
+                    f"{y}-{m:02d}-{d:02d}",
+                    f"{y}.{m:02d}.{d:02d}",
+                    f"{y}/{m:02d}/{d:02d}",
+                    f"{y}-{m}-{d}",
+                    f"{y}.{m}.{d}",
+                    f"{m:02d}-{d:02d}",
+                    f"{m:02d}.{d:02d}",
+                    f"{m}/{d}",
+                    f"{m}월{d}일",
+                    f"{m:02d}월{d:02d}일",
+                    f"{d}일",
+                ]
+                date_candidates_json = json.dumps(date_candidates, ensure_ascii=False)
+
+                extraction_result = page.evaluate(f"""
                     () => {{
                         const tables = Array.from(document.querySelectorAll('table'));
                         const priceRe = /^[0-9][0-9,]*(\\.[0-9]+)?$/;
+                        const dateCandidates = {date_candidates_json};
+
+                        let fallbackPrice = null; // 날짜 매칭 실패 시 사용할 예전 방식(헤더 바로 다음 행) 결과
 
                         for (const table of tables) {{
                             const rows = Array.from(table.querySelectorAll('tr'));
 
                             for (let r = 0; r < rows.length; r++) {{
-                                const cells = Array.from(rows[r].querySelectorAll('th, td'));
-                                const colIndex = cells.findIndex(c => c.innerText.trim().includes('{target_keyword}'));
+                                const headerCells = Array.from(rows[r].querySelectorAll('th, td'));
+                                const colIndex = headerCells.findIndex(c => c.innerText.trim().includes('{target_keyword}'));
+                                if (colIndex === -1) continue;
 
-                                if (colIndex !== -1 && r + 1 < rows.length) {{
-                                    const nextRowCells = Array.from(rows[r + 1].querySelectorAll('th, td'));
-                                    if (nextRowCells[colIndex]) {{
-                                        const text = nextRowCells[colIndex].innerText.trim();
-                                        if (priceRe.test(text)) {{
-                                            return text;
-                                        }}
+                                for (let dr = r + 1; dr < rows.length; dr++) {{
+                                    const dataCells = Array.from(rows[dr].querySelectorAll('th, td'));
+                                    if (!dataCells[colIndex]) continue;
+
+                                    const priceText = dataCells[colIndex].innerText.trim();
+                                    if (!priceRe.test(priceText)) continue;
+
+                                    // 날짜 매칭 시도: 데이터 행의 맨 앞쪽 셀(들)에서 날짜 문구를 찾는다
+                                    const firstCellText = (dataCells[0] ? dataCells[0].innerText.trim() : '');
+                                    const rowLabelText = dataCells.slice(0, 2).map(c => c.innerText.trim()).join(' ');
+                                    const isDateMatch = dateCandidates.some(dc => firstCellText.includes(dc) || rowLabelText.includes(dc));
+
+                                    if (isDateMatch) {{
+                                        return {{ price: priceText, dateMatched: true }};
+                                    }}
+
+                                    if (fallbackPrice === null) {{
+                                        fallbackPrice = priceText;
                                     }}
                                 }}
                             }}
+                        }}
+
+                        if (fallbackPrice !== null) {{
+                            return {{ price: fallbackPrice, dateMatched: false }};
                         }}
                         return null;
                     }}
                 """)
 
-                if extracted_price:
+                if extraction_result and extraction_result.get("price"):
                     try:
-                        oil_price = float(extracted_price.replace(",", ""))
+                        oil_price = float(extraction_result["price"].replace(",", ""))
                     except:
                         pass
+                    if not extraction_result.get("dateMatched"):
+                        st.warning(
+                            f"오피넷 표에서 {target_date_obj.strftime('%m월 %d일')} 날짜에 정확히 일치하는 행을 찾지 못해, "
+                            f"표에서 찾은 값({oil_price}원)을 사용했습니다. 캡처본에서 날짜를 다시 확인해 주세요."
+                        )
                 else:
                     st.warning(f"오피넷에서 실제 유가를 찾지 못해 기본값({oil_price}원)을 사용했습니다. 표 구조가 예상과 다를 수 있습니다.")
             except Exception as ex:
@@ -263,6 +438,17 @@ def find_matched_map_image(dest_name):
     for ext in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
         target = os.path.join(map_dir, f"{dest_name}{ext}")
         if os.path.exists(target):
+            return target
+
+    # 로컬(임시 파일시스템)에 없을 경우, GitHub 저장소에서 다시 받아와 캐시한다.
+    # (Streamlit Cloud는 재시작 시 로컬 파일이 초기화되므로, 커밋해둔 원본에서 복구)
+    for ext in [".png", ".jpg", ".jpeg"]:
+        remote_bytes = github_fetch_file(f"map/{dest_name}{ext}")
+        if remote_bytes is not None:
+            os.makedirs(map_dir, exist_ok=True)
+            target = os.path.join(map_dir, f"{dest_name}{ext}")
+            with open(target, "wb") as f_img:
+                f_img.write(remote_bytes)
             return target
     return None
 
@@ -492,14 +678,112 @@ div.stDownloadButton > button:hover {
     background-color: #6495ED !important;
     box-shadow: 0 6px 12px rgba(56, 182, 255, 0.45) !important;
 }
+/* 도착지 드롭다운 목록 맨 아래 '도착지 추가하기' 항목을 다른 색상으로 표시 */
+ul[data-testid="stSelectboxVirtualDropdown"] li:last-child,
+ul[data-testid="stSelectboxVirtualDropdown"] li:last-child * {
+    color: #ff8c00 !important;
+    font-weight: 600 !important;
+}
 </style>
 """, unsafe_allow_html=True)
+
+
+@st.dialog("도착지 추가하기")
+def add_destination_dialog():
+    st.markdown("네이버 지도를 캡처하고 그 캡처본을 도착지명(ex: 경북소프트웨어마이스터고등학교)으로 저장하여 첨부해 주세요.")
+
+    map_capture = st.file_uploader(
+        "네이버 지도 캡처 이미지 첨부",
+        type=["png", "jpg", "jpeg"],
+        key="new_dest_map_capture",
+    )
+    new_dest_name = st.text_input(
+        "도착지명",
+        placeholder="ex: 경북소프트웨어마이스터고등학교",
+        key="new_dest_name",
+    )
+    new_dest_region = st.text_input(
+        "도착지 지역명",
+        placeholder="ex: 의성, 영주",
+        key="new_dest_region",
+    )
+    new_dest_dist = st.number_input(
+        "편도 거리 (km)",
+        min_value=0.0,
+        step=1.0,
+        key="new_dest_dist",
+    )
+
+    col_save, col_cancel = st.columns(2)
+    with col_save:
+        save_clicked = st.button("저장", use_container_width=True)
+    with col_cancel:
+        cancel_clicked = st.button("취소", use_container_width=True)
+
+    if save_clicked:
+        name = new_dest_name.strip()
+        region = new_dest_region.strip()
+
+        if not map_capture:
+            st.error("네이버 지도 캡처 이미지를 첨부해 주세요.")
+        elif not name:
+            st.error("도착지명을 입력해 주세요.")
+        elif not region:
+            st.error("도착지 지역명을 입력해 주세요.")
+        elif new_dest_dist <= 0:
+            st.error("편도 거리를 입력해 주세요.")
+        elif name in BASE_DESTINATION_DB or name in load_custom_destinations():
+            st.error("이미 존재하는 도착지명입니다.")
+        else:
+            ext = (os.path.splitext(map_capture.name)[1] or ".png").lower()
+            if ext not in (".png", ".jpg", ".jpeg"):
+                ext = ".png"
+            image_bytes = map_capture.getbuffer().tobytes()
+
+            # 로컬 캐시 저장 (같은 세션에서 바로 반영되도록)
+            os.makedirs(MAP_DIR, exist_ok=True)
+            with open(os.path.join(MAP_DIR, f"{name}{ext}"), "wb") as f_img:
+                f_img.write(image_bytes)
+
+            with st.spinner("GitHub에 커밋하는 중..."):
+                entry, dest_ok, dest_err = save_new_destination(name, region, new_dest_dist)
+                img_ok, img_err = github_commit_file(
+                    f"map/{name}{ext}",
+                    image_bytes,
+                    f"도착지 지도 캡처 추가: {name}",
+                )
+
+            if dest_ok and img_ok:
+                st.session_state.pending_dest_selection = name
+                st.success(f"'{name}' 도착지가 추가되어 GitHub에 커밋되었습니다.")
+                st.rerun()
+            else:
+                st.session_state.pending_dest_selection = name
+                st.warning(
+                    "도착지는 이번 세션에 추가됐지만 GitHub 커밋에 실패했습니다. "
+                    "앱이 재시작되면 이 도착지 정보가 사라질 수 있습니다.\n\n"
+                    f"{dest_err or ''} {img_err or ''}".strip()
+                )
+                st.rerun()
+
+    if cancel_clicked:
+        fallback = next(iter(DESTINATION_DB), ADD_DEST_OPTION)
+        st.session_state.pending_dest_selection = fallback
+        st.rerun()
+
 
 col1, col2 = st.columns(2)
 with col1:
     run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
 with col2:
-    dest_selection = st.selectbox("도착지", list(DESTINATION_DB.keys()))
+    if "pending_dest_selection" in st.session_state:
+        st.session_state.dest_selectbox = st.session_state.pop("pending_dest_selection")
+
+    dest_options = list(DESTINATION_DB.keys()) + [ADD_DEST_OPTION]
+    dest_selection = st.selectbox("도착지", dest_options, key="dest_selectbox")
+
+if dest_selection == ADD_DEST_OPTION:
+    add_destination_dialog()
 
 col3, col4 = st.columns(2)
 with col3:
@@ -522,14 +806,16 @@ with col5:
 with col6:
     meal_fee = st.number_input("식비", 25000, step=1000)
 
-matched_img_file = find_matched_map_image(dest_selection)
+matched_img_file = find_matched_map_image(dest_selection) if dest_selection != ADD_DEST_OPTION else None
 
 st.write("---")
 
 if "report_ready" not in st.session_state:
     st.session_state.report_ready = False
 
-if st.button("보고서 생성", use_container_width=True):
+if dest_selection == ADD_DEST_OPTION:
+    st.info("도착지를 추가한 뒤, 목록에서 새로 추가된 도착지를 선택해 주세요.")
+elif st.button("보고서 생성", use_container_width=True):
     db_info = DESTINATION_DB[dest_selection]
     round_distance = db_info["round_dist"]
     if "휘발유" in fuel_selection and "하이브리드" not in fuel_selection:
