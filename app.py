@@ -9,6 +9,7 @@ from docx import Document
 from docx.shared import Inches, Pt, Mm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement, parse_xml
 from playwright.sync_api import sync_playwright
@@ -520,6 +521,12 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     doc = Document()
 
     for section in doc.sections:
+        # 용지를 명시적으로 A4로 고정 (기본 템플릿이 Letter/LTR로 되어 있어
+        # 인쇄 시 "최적 용지 없음" 오류가 나거나, Letter가 A4보다 짧아
+        # 내용이 다음 페이지로 밀려 빈 페이지가 생기는 문제를 방지)
+        section.page_width = Mm(210)
+        section.page_height = Mm(297)
+        section.orientation = WD_ORIENT.PORTRAIT
         section.top_margin = Mm(10)
         section.bottom_margin = Mm(10)
         section.left_margin = Mm(15)
