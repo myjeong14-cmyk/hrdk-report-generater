@@ -572,35 +572,14 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         section.right_margin = Mm(15)
 
     total_table_width = Mm(180.0)
-
-    # 1. 제목 표 생성
-    title_table = doc.add_table(rows=1, cols=1)
-    title_table.autofit = False
-    title_cell = title_table.rows[0].cells[0]
-    title_cell.width = total_table_width
-    title_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    remove_cell_margins(title_cell)
-    fix_table_width_and_indent(title_table, total_table_width)
-    
-    set_cell_background(title_cell, "E0E0E0")  
-    apply_title_table_borders(title_cell)     
-    
-    title_p = title_cell.paragraphs[0]
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_p.paragraph_format.space_before = Pt(0)
-    title_p.paragraph_format.space_after = Pt(0)
-    title_p.paragraph_format.line_spacing = 1.0
-    
-    title_run = title_p.add_run("시외출장 지출(개인차량) 증빙 내역")
-    set_run_font(title_run, "맑은 고딕", 24, bold=True) 
-
-    spacer = doc.add_paragraph()
-    spacer.paragraph_format.space_before = Pt(3)
-    spacer.paragraph_format.space_after = Pt(0)
-
-    # 2. 본문 표 구성 (7행 4열)
     col_widths = [Mm(35.0), Mm(55.0), Mm(35.0), Mm(55.0)]
-    table = doc.add_table(rows=7, cols=4)
+
+    # 제목 행 + 데이터 5행 + 이미지 2행 = 총 8행을 "하나의 표"로 만든다.
+    # 제목과 본문을 별개의 표 2개로 만들면, 워드 프로그램에 따라 두 표의
+    # 실제 렌더링 너비/시작 위치가 미세하게 달라져 좌우 테두리가 어긋나 보일 수 있다.
+    # 아예 같은 표로 합쳐버리면 같은 tblGrid(열 구조)를 공유하므로
+    # 좌우 경계가 어긋나는 것 자체가 구조적으로 불가능해진다.
+    table = doc.add_table(rows=8, cols=4)
     table.style = "Table Grid"
     table.autofit = False
     fix_table_width_and_indent(table, total_table_width)
@@ -610,6 +589,25 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
             cell.width = col_widths[idx]
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
+    # 1. 제목 행 (0번 행) - 4개 열을 하나로 병합
+    title_cell = table.rows[0].cells[0]
+    for c in table.rows[0].cells[1:]:
+        title_cell = title_cell.merge(c)
+    remove_cell_margins(title_cell)
+
+    set_cell_background(title_cell, "E0E0E0")
+    apply_title_table_borders(title_cell)
+
+    title_p = title_cell.paragraphs[0]
+    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_p.paragraph_format.space_before = Pt(0)
+    title_p.paragraph_format.space_after = Pt(0)
+    title_p.paragraph_format.line_spacing = 1.0
+
+    title_run = title_p.add_run("시외출장 지출(개인차량) 증빙 내역")
+    set_run_font(title_run, "맑은 고딕", 24, bold=True)
+
+    # 2. 데이터 행 (1~5번 행)
     rows_data = [
         ("운행일시", data_dict["date"], "유류비(원)", f"{data_dict['fuel_cost']:,}"),
         ("출장지", data_dict["path"], "통행료", f"{data_dict['toll']:,}"),
@@ -619,8 +617,8 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
     ]
 
     # 모든 라벨 크기 13pt 및 굵게 적용
-    for idx, (l1, v1, l2, v2) in enumerate(rows_data):
-        cells = table.rows[idx].cells
+    for offset, (l1, v1, l2, v2) in enumerate(rows_data):
+        cells = table.rows[offset + 1].cells
 
         # 1열: 왼쪽 라벨 영역 (13pt, Bold)
         cells[0].text = ""
@@ -656,9 +654,9 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         p3.paragraph_format.space_after = Pt(2)
         set_run_font(p3.add_run(str(v2)), "맑은 고딕", 10, bold=False)
 
-    # 3. 경로 네이버지도 스크린샷 행 처리
-    map_cell = table.rows[5].cells[0]
-    for c in table.rows[5].cells[1:]:
+    # 3. 경로 네이버지도 스크린샷 행 처리 (6번 행)
+    map_cell = table.rows[6].cells[0]
+    for c in table.rows[6].cells[1:]:
         map_cell = map_cell.merge(c)
     remove_cell_margins(map_cell)
     
@@ -673,9 +671,9 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
         r = map_p.add_run("경로 네이버지도 스크린샷")
         set_run_font(r, "맑은 고딕", 11, bold=False)
 
-    # 4. 오피넷 스크린샷 행 처리
-    opinet_cell = table.rows[6].cells[0]
-    for c in table.rows[6].cells[1:]:
+    # 4. 오피넷 스크린샷 행 처리 (7번 행)
+    opinet_cell = table.rows[7].cells[0]
+    for c in table.rows[7].cells[1:]:
         opinet_cell = opinet_cell.merge(c)
     remove_cell_margins(opinet_cell)
     
