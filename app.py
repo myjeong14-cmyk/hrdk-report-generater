@@ -865,9 +865,9 @@ with col4:
 
 col5, col6 = st.columns(2)
 with col5:
-    daily_fee = st.number_input("일비", 0, step=1000)
+    daily_fee = st.number_input("일비", min_value=0, value=25000, step=1000)
 with col6:
-    meal_fee = st.number_input("식비", 0, step=1000)
+    meal_fee = st.number_input("식비", min_value=0, value=25000, step=1000)
 
 matched_img_file = find_matched_map_image(dest_selection) if dest_selection != ADD_DEST_OPTION else None
 
