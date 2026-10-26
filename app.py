@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import time
 import os
@@ -835,6 +836,8 @@ def add_destination_dialog():
         st.rerun()
 
 
+user_name = st.text_input("이름", key="user_name", placeholder="예: 민정연")
+
 col1, col2 = st.columns(2)
 with col1:
     run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
@@ -918,6 +921,9 @@ elif st.button("보고서 생성", use_container_width=True):
 
     st.session_state.report_ready = True
     st.session_state.report_file = file
+    # 저장 파일명: 날짜(MMDD) + 이름  예) 1011민정연.docx
+    safe_name = re.sub(r'[\\/:*?"<>|\s]', "", user_name or "")
+    st.session_state.report_download_name = f"{run_date.strftime('%m%d')}{safe_name}.docx"
     st.session_state.opinet_img = opinet_img
     st.session_state.matched_img_file = matched_img_file
 
@@ -931,7 +937,7 @@ if st.session_state.report_ready:
         st.download_button(
             "보고서 다운로드",
             f,
-            file_name="출장지출증빙_보고서.docx",
+            file_name=st.session_state.get("report_download_name", "출장지출증빙_보고서.docx"),
             use_container_width=True
         )
 
