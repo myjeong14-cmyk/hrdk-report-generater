@@ -718,30 +718,134 @@ def create_docx_report(data_dict, map_image_path, opinet_image_path="opinet_capt
 # =========================
 st.set_page_config(page_title="출장 지출 증빙", layout="centered")
 
-st.title("시외출장 지출보고서 생성기")
+# 연료별 연비 (계산식은 기존과 동일, 미리보기와 생성에서 함께 사용)
+FUEL_OPTIONS = [
+    "휘발유 (10.06 km/ℓ)",
+    "경유 (10.16 km/ℓ)",
+    "LPG (7.87 km/ℓ)",
+    "하이브리드 (15.37 km/ℓ)",
+    "플러그인 하이브리드 (10.61 km/ℓ)",
+]
+FUEL_SHORT_LABEL = {
+    "휘발유 (10.06 km/ℓ)": "휘발유",
+    "경유 (10.16 km/ℓ)": "경유",
+    "LPG (7.87 km/ℓ)": "LPG",
+    "하이브리드 (15.37 km/ℓ)": "하이브리드",
+    "플러그인 하이브리드 (10.61 km/ℓ)": "플러그인 하이브리드",
+}
+
+
+def get_fuel_efficiency(fuel_selection):
+    if "휘발유" in fuel_selection and "하이브리드" not in fuel_selection:
+        return 10.06
+    elif "경유" in fuel_selection:
+        return 10.16
+    elif "LPG" in fuel_selection:
+        return 7.87
+    elif "플러그인 하이브리드" in fuel_selection:
+        return 10.61
+    elif "하이브리드" in fuel_selection:
+        return 15.37
+    return 10.06
+
+
+def get_default_oil_price(fuel_selection):
+    # capture_opinet_print_page()의 기본값과 동일 (미리보기 전용)
+    if "LPG" in fuel_selection:
+        return 1130
+    elif "경유" in fuel_selection:
+        return 1510
+    return 1640
+
+
+def fmt_won(value):
+    value = float(value)
+    return f"{int(value):,}" if value.is_integer() else f"{value:,.2f}"
+
 
 st.markdown("""
 <style>
-div.stButton > button, 
-div.stDownloadButton > button {
-    background-color: #191970 !important;
-    height: 3.4em !important;
-    border-radius: 12px !important;
-    border: none !important;
-    box-shadow: 0 4px 8px rgba(56, 182, 255, 0.35) !important;
-    transition: all 0.2s ease;
+:root {
+    --hr-navy: #191970;
+    --hr-navy-hover: #2e2e9e;
+    --hr-accent: #4263eb;
+    --hr-tint: rgba(66, 99, 235, 0.12);
+    --hr-line: rgba(128, 128, 128, 0.28);
+    --hr-soft: rgba(128, 128, 128, 0.08);
 }
-div.stButton > button p, 
-div.stDownloadButton > button p {
-    color: white !important;
-    font-size: 21px !important;
+
+/* 상단 제목 */
+.hr-head { margin: 0.2rem 0 1.2rem; }
+.hr-head .eyebrow { font-size: 0.85rem; opacity: 0.6; margin-bottom: 0.15rem; }
+.hr-head .title { font-size: 1.75rem; font-weight: 700; line-height: 1.3; }
+
+/* 섹션 제목 (번호 배지) */
+.hr-sec { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 1rem; margin: 0 0 0.25rem; }
+.hr-sec .n {
+    width: 1.5rem; height: 1.5rem; border-radius: 50%;
+    background: var(--hr-tint); color: var(--hr-accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700;
+}
+
+/* 테두리 컨테이너를 카드처럼 */
+div[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px !important; }
+
+/* 예상 금액 카드 */
+.hr-est {
+    border: 1px solid var(--hr-accent); border-radius: 14px;
+    padding: 0.9rem 1.1rem; margin: 0.4rem 0 0.9rem;
+}
+.hr-est .r { display: flex; justify-content: space-between; align-items: baseline; padding: 0.15rem 0; font-size: 0.95rem; }
+.hr-est .r .k { opacity: 0.7; }
+.hr-est .total { border-top: 1px solid var(--hr-line); margin-top: 0.4rem; padding-top: 0.55rem; }
+.hr-est .total .v { font-size: 1.6rem; font-weight: 700; color: var(--hr-accent); }
+.hr-est .note { font-size: 0.78rem; opacity: 0.55; margin-top: 0.2rem; }
+
+/* 영수증 카드 */
+.hr-done { display: flex; align-items: center; gap: 0.4rem; color: #2f9e44; font-weight: 600; margin: 0.4rem 0 0.6rem; }
+.hr-rcpt { background: var(--hr-soft); border-radius: 14px; padding: 1.1rem 1.2rem; margin-bottom: 0.9rem; }
+.hr-rcpt .meta { font-size: 0.85rem; opacity: 0.65; }
+.hr-rcpt .amount { font-size: 2rem; font-weight: 700; margin: 0.15rem 0 0.7rem; }
+.hr-rcpt .r { display: flex; justify-content: space-between; gap: 1rem; padding: 0.22rem 0; font-size: 0.93rem; }
+.hr-rcpt .r .k { opacity: 0.7; }
+.hr-rcpt .r .v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hr-rcpt .sum { border-top: 1px dashed var(--hr-line); margin-top: 0.45rem; padding-top: 0.55rem; font-weight: 600; }
+.hr-rcpt .sum .k { opacity: 1; }
+
+/* 기본(진한) 버튼: 보고서 생성 / 보고서 다운로드 / 저장 */
+div.stButton > button[kind="primary"],
+div.stDownloadButton > button[kind="primary"] {
+    background-color: var(--hr-navy) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    min-height: 3.2em !important;
+    transition: background-color 0.15s ease;
+}
+div.stButton > button[kind="primary"] p,
+div.stDownloadButton > button[kind="primary"] p {
+    color: #ffffff !important;
+    font-size: 1.15rem !important;
     font-weight: 600 !important;
 }
-div.stButton > button:hover, 
-div.stDownloadButton > button:hover {
-    background-color: #6495ED !important;
-    box-shadow: 0 6px 12px rgba(56, 182, 255, 0.45) !important;
+div.stButton > button[kind="primary"]:hover,
+div.stDownloadButton > button[kind="primary"]:hover {
+    background-color: var(--hr-navy-hover) !important;
 }
+
+/* 보조(테두리) 버튼: 캡처 받기 / 취소 — 글자색은 테마를 따라가 다크모드에서도 보임 */
+div.stButton > button[kind="secondary"],
+div.stDownloadButton > button[kind="secondary"] {
+    background: transparent !important;
+    border: 1px solid var(--hr-line) !important;
+    border-radius: 10px !important;
+}
+div.stButton > button[kind="secondary"]:hover,
+div.stDownloadButton > button[kind="secondary"]:hover {
+    border-color: var(--hr-accent) !important;
+    color: var(--hr-accent) !important;
+}
+
 /* 도착지 드롭다운 목록 맨 아래 '도착지 추가하기' 항목을 다른 색상으로 표시 */
 ul[data-testid="stSelectboxVirtualDropdown"] li:last-child,
 ul[data-testid="stSelectboxVirtualDropdown"] li:last-child * {
@@ -750,6 +854,16 @@ ul[data-testid="stSelectboxVirtualDropdown"] li:last-child * {
 }
 </style>
 """, unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="hr-head"><div class="eyebrow">한국산업인력공단 경북지사 · 외부시험장</div>'
+    '<div class="title">시외출장 지출보고서 생성기</div></div>',
+    unsafe_allow_html=True,
+)
+
+
+def section_title(num, text):
+    st.markdown(f'<div class="hr-sec"><span class="n">{num}</span>{text}</div>', unsafe_allow_html=True)
 
 
 @st.dialog("도착지 추가하기")
@@ -780,7 +894,7 @@ def add_destination_dialog():
 
     col_save, col_cancel = st.columns(2)
     with col_save:
-        save_clicked = st.button("저장", use_container_width=True)
+        save_clicked = st.button("저장", type="primary", use_container_width=True)
     with col_cancel:
         cancel_clicked = st.button("취소", use_container_width=True)
 
@@ -836,167 +950,171 @@ def add_destination_dialog():
         st.rerun()
 
 
-user_name = st.text_input("이름", key="user_name", placeholder="예: 민정연")
+# ---------- ① 기본정보 ----------
+with st.container(border=True):
+    section_title(1, "기본정보")
+    col1, col2 = st.columns(2)
+    with col1:
+        user_name = st.text_input("이름", key="user_name", placeholder="예: 민정연")
+    with col2:
+        run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
 
-col1, col2 = st.columns(2)
-with col1:
-    run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
-with col2:
+# ---------- ② 이동정보 ----------
+with st.container(border=True):
+    section_title(2, "이동정보")
     if "pending_dest_selection" in st.session_state:
         st.session_state.dest_selectbox = st.session_state.pop("pending_dest_selection")
 
     dest_options = list(DESTINATION_DB.keys()) + [ADD_DEST_OPTION]
     dest_selection = st.selectbox("도착지", dest_options, key="dest_selectbox")
 
+    if dest_selection != ADD_DEST_OPTION:
+        _info = DESTINATION_DB[dest_selection]
+        st.caption(f"{_info['path']} · 왕복 {_info['round_dist']}km")
+
+    fuel_selection = st.radio(
+        "연료",
+        FUEL_OPTIONS,
+        format_func=lambda x: FUEL_SHORT_LABEL.get(x, x),
+        horizontal=True,
+    )
+    st.caption(f"연비 {get_fuel_efficiency(fuel_selection)} km/ℓ 기준")
+
 if dest_selection == ADD_DEST_OPTION:
     add_destination_dialog()
 
-col3, col4 = st.columns(2)
-with col3:
-    fuel_selection = st.radio(
-        "연료",
-        [
-            "휘발유 (10.06 km/ℓ)",
-            "경유 (10.16 km/ℓ)",
-            "LPG (7.87 km/ℓ)",
-            "하이브리드 (15.37 km/ℓ)",
-            "플러그인 하이브리드 (10.61 km/ℓ)",
-        ]
-    )
-with col4:
-    toll_input = st.number_input("통행료", 0, step=100)
-
-col5, col6 = st.columns(2)
-with col5:
-    daily_fee = st.number_input("일비", min_value=0, value=25000, step=1000)
-with col6:
-    meal_fee = st.number_input("식비", min_value=0, value=25000, step=1000)
+# ---------- ③ 비용 ----------
+with st.container(border=True):
+    section_title(3, "비용")
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        toll_input = st.number_input("통행료", 0, step=100)
+    with col4:
+        daily_fee = st.number_input("일비", min_value=0, value=25000, step=1000)
+    with col5:
+        meal_fee = st.number_input("식비", min_value=0, value=25000, step=1000)
 
 matched_img_file = find_matched_map_image(dest_selection) if dest_selection != ADD_DEST_OPTION else None
-
-st.write("---")
 
 if "report_ready" not in st.session_state:
     st.session_state.report_ready = False
 
 if dest_selection == ADD_DEST_OPTION:
     st.info("도착지를 추가한 뒤, 목록에서 새로 추가된 도착지를 선택해 주세요.")
-elif st.button("보고서 생성", use_container_width=True):
-    db_info = DESTINATION_DB[dest_selection]
-    round_distance = db_info["round_dist"]
-    if "휘발유" in fuel_selection and "하이브리드" not in fuel_selection:
-        efficiency = 10.06
-    elif "경유" in fuel_selection:
-        efficiency = 10.16
-    elif "LPG" in fuel_selection:
-        efficiency = 7.87
-    elif "플러그인 하이브리드" in fuel_selection:
-        efficiency = 10.61
-    elif "하이브리드" in fuel_selection:
-        efficiency = 15.37
-    else:
-        efficiency = 10.06
+else:
+    # ---------- 예상 금액 카드 (기본 유가 기준 미리보기) ----------
+    _round = DESTINATION_DB[dest_selection]["round_dist"]
+    _eff = get_fuel_efficiency(fuel_selection)
+    _est_price = get_default_oil_price(fuel_selection)
+    _est_fuel = int(_round / _eff * _est_price)
+    _est_total = int((_est_fuel + toll_input + daily_fee + meal_fee) // 10) * 10
+    st.markdown(
+        f'''<div class="hr-est">
+            <div class="r"><span class="k">예상 유류비</span><span>약 {_est_fuel:,}원</span></div>
+            <div class="r total"><span>예상 총액</span><span class="v">{_est_total:,}원</span></div>
+            <div class="note">기본 유가({_est_price:,}원/ℓ) 기준 · 보고서 생성 시 오피넷 실제 유가로 확정됩니다</div>
+        </div>''',
+        unsafe_allow_html=True,
+    )
 
-    with st.spinner("오피넷 조회 중..."):
-        opinet_img, oil_price = capture_opinet_print_page(run_date, fuel_selection)
+    if st.button("보고서 생성", type="primary", use_container_width=True):
+        db_info = DESTINATION_DB[dest_selection]
+        round_distance = db_info["round_dist"]
+        efficiency = get_fuel_efficiency(fuel_selection)
 
-    fuel_cost = int(round_distance / efficiency * oil_price)
-    total_cost_raw = fuel_cost + toll_input + daily_fee + meal_fee
-    total_cost = int(total_cost_raw // 10) * 10  # 총계만 1원 단위 절사 (예: 1882.72 -> 1880)
+        with st.spinner("오피넷 조회 중..."):
+            opinet_img, oil_price = capture_opinet_print_page(run_date, fuel_selection)
 
-    report_data = {
-        "date": run_date.strftime("%Y년 %m월 %d일"),
-        "path": db_info["path"],
-        "distance": round_distance,
-        "efficiency": efficiency,
-        "oil_price": oil_price,
-        "fuel_cost": fuel_cost,
-        "toll": toll_input,
-        "daily_allowance": daily_fee,
-        "meal_allowance": meal_fee,
-        "total_cost": total_cost
-    }
+        fuel_cost = int(round_distance / efficiency * oil_price)
+        total_cost_raw = fuel_cost + toll_input + daily_fee + meal_fee
+        total_cost = int(total_cost_raw // 10) * 10  # 총계만 1원 단위 절사 (예: 1882.72 -> 1880)
 
-    file = create_docx_report(report_data, matched_img_file, opinet_img)
+        report_data = {
+            "date": run_date.strftime("%Y년 %m월 %d일"),
+            "path": db_info["path"],
+            "distance": round_distance,
+            "efficiency": efficiency,
+            "oil_price": oil_price,
+            "fuel_cost": fuel_cost,
+            "toll": toll_input,
+            "daily_allowance": daily_fee,
+            "meal_allowance": meal_fee,
+            "total_cost": total_cost
+        }
 
-    st.session_state.report_ready = True
-    st.session_state.report_file = file
-    # 저장 파일명: 날짜(MMDD) + 이름  예) 1011민정연.docx
-    safe_name = re.sub(r'[\\/:*?"<>|\s]', "", user_name or "")
-    st.session_state.report_download_name = f"{run_date.strftime('%m%d')}{safe_name}.docx"
-    st.session_state.opinet_img = opinet_img
-    st.session_state.matched_img_file = matched_img_file
+        file = create_docx_report(report_data, matched_img_file, opinet_img)
 
+        st.session_state.report_ready = True
+        st.session_state.report_file = file
+        # 저장 파일명: 날짜(MMDD) + 이름  예) 1011민정연.docx
+        safe_name = re.sub(r'[\\/:*?"<>|\s]', "", user_name or "")
+        st.session_state.report_download_name = f"{run_date.strftime('%m%d')}{safe_name}.docx"
+        st.session_state.opinet_img = opinet_img
+        st.session_state.matched_img_file = matched_img_file
+        st.session_state.report_data = report_data
+        st.session_state.report_dest = dest_selection
+
+# ---------- 결과: 영수증형 화면 ----------
 if st.session_state.report_ready:
-    st.success("보고서 생성이 완료되었습니다.")
     report_file = st.session_state.report_file
     opinet_img = st.session_state.opinet_img
     matched_img_file = st.session_state.matched_img_file
+    rd = st.session_state.get("report_data")
+
+    st.write("")
+    st.markdown(
+        '<div class="hr-done"><span>✓</span><span>보고서가 준비되었습니다</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    if rd:
+        st.markdown(
+            f'''<div class="hr-rcpt">
+                <div class="meta">{rd["date"]} · {st.session_state.get("report_dest", "")} ({rd["path"]})</div>
+                <div class="amount">{rd["total_cost"]:,}원</div>
+                <div class="r"><span class="k">유류비 · {rd["distance"]}km ÷ {rd["efficiency"]} × {fmt_won(rd["oil_price"])}원</span><span class="v">{rd["fuel_cost"]:,}</span></div>
+                <div class="r"><span class="k">통행료</span><span class="v">{rd["toll"]:,}</span></div>
+                <div class="r"><span class="k">일비</span><span class="v">{rd["daily_allowance"]:,}</span></div>
+                <div class="r"><span class="k">식비</span><span class="v">{rd["meal_allowance"]:,}</span></div>
+                <div class="r sum"><span class="k">총계 (1원 단위 절사)</span><span class="v">{rd["total_cost"]:,}</span></div>
+            </div>''',
+            unsafe_allow_html=True,
+        )
 
     with open(report_file, "rb") as f:
         st.download_button(
             "보고서 다운로드",
             f,
             file_name=st.session_state.get("report_download_name", "출장지출증빙_보고서.docx"),
+            type="primary",
             use_container_width=True
         )
 
+    st.write("")
     col_a, col_b = st.columns(2)
     with col_a:
         if matched_img_file and os.path.exists(matched_img_file):
             st.image(matched_img_file, caption="네이버지도 경로")
             with open(matched_img_file, "rb") as f_map:
-                import base64
-                map_bytes = f_map.read()
-                b64 = base64.b64encode(map_bytes).decode()
-                href = f'data:application/octet-stream;base64,{b64}'
-                btn_html = (
-                    f'<a href="{href}" download="{os.path.basename(matched_img_file)}" target="_blank" style="text-decoration: none; width: 100%;">'
-                    f'  <button style="'
-                    f'      width: 100%;'
-                    f'      background-color: transparent;'
-                    f'      color: rgb(49, 51, 63);'
-                    f'      border: 1px solid rgba(49, 51, 63, 0.2);'
-                    f'      border-radius: 0.5rem;'
-                    f'      padding: 0.4rem 0.75rem;'
-                    f'      font-size: 14px;'
-                    f'      font-weight: 400;'
-                    f'      line-height: 1.6;'
-                    f'      cursor: pointer;'
-                    f'      text-align: center;'
-                    f'      font-family: inherit;'
-                    f'  ">경로 캡처 다운받기</button>'
-                    f'</a>'
+                st.download_button(
+                    "경로 캡처 받기",
+                    f_map.read(),
+                    file_name=os.path.basename(matched_img_file),
+                    key="dl_map_capture",
+                    use_container_width=True,
                 )
-                st.markdown(btn_html, unsafe_allow_html=True)
         else:
             st.warning("map 폴더에서 일치하는 지도 사진을 찾지 못했습니다.")
     with col_b:
         if os.path.exists(opinet_img):
             st.image(opinet_img, caption="오피넷 화면인쇄 증빙")
             with open(opinet_img, "rb") as f_oil:
-                import base64
-                opinet_bytes = f_oil.read()
-                b64 = base64.b64encode(opinet_bytes).decode()
-                href = f'data:application/octet-stream;base64,{b64}'
-                
-                st.markdown(f'''
-                    <a href="{href}" download="opinet_capture.png" target="_blank" style="text-decoration: none; width: 100%;">
-                        <button style="
-                            width: 100%;
-                            background-color: transparent;
-                            color: rgb(49, 51, 63);
-                            border: 1px solid rgba(49, 51, 63, 0.2);
-                            border-radius: 0.5rem;
-                            padding: 0.4rem 0.75rem;
-                            font-size: 14px;
-                            font-weight: 400;
-                            line-height: 1.6;
-                            cursor: pointer;
-                            text-align: center;
-                            font-family: inherit;
-                        ">유가 캡처 다운받기</button>
-                    </a>
-                ''', unsafe_allow_html=True)
+                st.download_button(
+                    "유가 캡처 받기",
+                    f_oil.read(),
+                    file_name="opinet_capture.png",
+                    key="dl_opinet_capture",
+                    use_container_width=True,
+                )
         else:
             st.warning("오피넷 캡처 이미지를 생성하지 못했습니다. 위 에러 메시지를 확인해주세요.")
