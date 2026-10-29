@@ -749,104 +749,309 @@ def get_fuel_efficiency(fuel_selection):
     return 10.06
 
 
-def get_default_oil_price(fuel_selection):
-    # capture_opinet_print_page()의 기본값과 동일 (미리보기 전용)
-    if "LPG" in fuel_selection:
-        return 1130
-    elif "경유" in fuel_selection:
-        return 1510
-    return 1640
-
-
 def fmt_won(value):
     value = float(value)
     return f"{int(value):,}" if value.is_integer() else f"{value:,.2f}"
 
 
+
+
+# =========================
+# 화면 스타일 (레퍼런스: 다크 그라데이션 + 라임 포인트 + 픽셀 모자이크 + 밑줄 입력칸)
+# 라이트/다크모드와 상관없이 같은 색으로 보이도록 색을 직접 지정
+# =========================
+import random as _random
+
+
+# HRDK 경북지사 로고를 픽셀 모자이크로 바꾼 이미지 (어두운 바탕용: 남색 글자 -> 흰색)
+HRDK_LOGO_PIXEL_B64 = "iVBORw0KGgoAAAANSUhEUgAAB8AAAADAAgMAAAAGiZEXAAAADFBMVEX///8AAADu8PYAoOlIKoesAAAABHRSTlMOAP//7WoDVgAABA9JREFUeNrt3V1S4zAQRWFM1jilNfYm7XmBGWK3pLbhgSTf0QsEK3Fxq6I6bv28vS3aK7X3N7wUAhc4BA6BQ+B4AJY//gevFrnGw2EMh8AhcAgcAgcPBw/XeDiM4RA4BA6BCxw8HM9o4dtHW9f39X19X2//Xjm++vnbvt06Pdb0im3Zlvj4oXVez/6mfb/5SjeGQ+AQOAQOgYOH4zd7+N6jex7+tdfXPmvH1XsezsJ5OIzhEDgEDoFD4DwcPLzi4f/79Tz8/r0zD2fhPBzGcAgcAofAIXAeDvPSqx6+v+aWXD/ycBbOw2EMh8AhcAgcAufh4OFrWuse1cz3fbZ0dvrew+cWHgydh8MYDoFD4AKHwMHD8fQevg2q41d6fl517+EzC4+7X9vOyWN3+X6ue+v8vJT+9vmX4z1G4R5icN/5E4jxHbfu/6N3XePhxnAIHAKHwCFw8HDw8DvXrdbCxz6bV81zq42DM0f3mUCv11K4h+y9Rh4+svjRcwseDmM4BC5wCBwCBw/HI3v4Wlr7PVtDfhs6fOycerwuPHZmGRNnr3h432jvf4rBbnKze4h0Dfz8WcOsHr6dqJvzcGM4BA6BQ+AQOHg4nsnD16Kr9zx8Ke3Olnt4//zx3Hwjmcc9q363dF76eA58dOvflfuOQj18Ozl/vfFwYzgEDoFD4BA4eDge3MPX6bllP+3hXy01n/ndn7+dV8FbYr/5K0enjm94eJvMu6+vfO+vVG+dz/OVbgyHwCFwCBwCBw/Hb1wfvp4+k+w2XS3+nXnp+0pyzcNjMMM8unuuxfBdst3RZvcwft7Q2zFu/ISh7uHmpRvDIXAIHAKHwMHD8fjnh986J5bN3+faPm3zOm/mnHFXiW7JFedXlee7lMdlD49JVX2Z7tTW20uu8XAYwwUOgUPgEDh4OJ7Ww2f18OOV584tq5wlHtO+fdce9Y7yqeVR2m9ufjJbm/baz6vPKv9L+uTBV7oxHAKHwCFwCBw8HI/r4XlFvLKXWz4bu7YH+dZdqz3eb3xW86736u+bVtlPrb8+vA1PCc9nA8TBw7PXebgxHAKHwCFwCBw8HM/h4ZmJZ7u8HW09hh7bCtXsVqg4nzHqWq/Kk4Hxp7bCO7VTtfRxHx5uDIfAIXAIHAIHD8czefjRxK96+MzE48Sc9VboE6VTwK58UtXjz95z8HAYwyFwCFzgEDh4OHj4wcTXqYP3PLyySnq5MH+9Mo98Kfaam3yUPyf7b1ypevNwGMMhcIFD4BA4eDhe1cPHp4/PPXxk4tfteLxXecXRa/YbpU85v08bD4cxHAKHwCFwgYOH47lMXHud5ivdGA6BQ+AQOAQOHg4ervFwGMMhcAgcAofAeTh4uMbDYQyHwCFwCBwCBw/HD/MXUSZuJLJwkckAAAAASUVORK5CYII="
+
+
+def pixel_mosaic_html(cols=48, rows=11, seed=7, lime=False):
+    """레퍼런스 첫 화면의 계단식 픽셀 산. 매번 같은 모양이 나오도록 seed 고정."""
+    import math
+    rnd = _random.Random(seed)
+    cells = []
+    for r in range(rows):
+        for c in range(cols):
+            x = c / (cols - 1)
+            # 두 개의 봉우리를 겹친 산 모양 (0~rows)
+            h_outer = rows * (0.55 * math.exp(-((x - 0.38) ** 2) / 0.05) + 0.35 * math.exp(-((x - 0.82) ** 2) / 0.03) + 0.18)
+            h_inner = rows * (0.42 * math.exp(-((x - 0.36) ** 2) / 0.02) + 0.05)
+            level = rows - r  # 아래에서부터의 높이
+            if level <= h_inner:
+                cls = "c3" if lime else "c2"
+            elif level <= h_outer:
+                cls = "c1"
+            else:
+                cls = "c0"
+            twinkle = ""
+            if cls != "c0" and rnd.random() < 0.06:
+                twinkle = f' tw" style="animation-delay:{c * 18}ms, {rnd.randint(0, 4000)}ms'
+            else:
+                twinkle = f'" style="animation-delay:{c * 18}ms'
+            cells.append(f'<i class="{cls}{twinkle}"></i>')
+    return f'<div class="ax-mosaic" style="grid-template-columns:repeat({cols},1fr)">{"".join(cells)}</div>'
+
+
 st.markdown("""
 <style>
+@import url("https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap");
+
 :root {
-    --hr-navy: #191970;
-    --hr-navy-hover: #2e2e9e;
-    --hr-accent: #4263eb;
-    --hr-tint: rgba(66, 99, 235, 0.12);
-    --hr-line: rgba(128, 128, 128, 0.28);
-    --hr-soft: rgba(128, 128, 128, 0.08);
+    --ax-ink: #eef0f6;
+    --ax-dim: rgba(238, 240, 246, 0.62);
+    --ax-faint: rgba(238, 240, 246, 0.38);
+    --ax-line: rgba(238, 240, 246, 0.2);
+    --ax-lime: #d6ef5c;
+    --ax-lime-ink: #1a1f10;
+    --ax-peri: #5868c4;
+    --ax-cream: #e8e5cf;
+    --ax-panel: rgba(255, 255, 255, 0.04);
 }
 
-/* 상단 제목 */
-.hr-head { margin: 0.2rem 0 1.2rem; }
-.hr-head .eyebrow { font-size: 0.85rem; opacity: 0.6; margin-bottom: 0.15rem; }
-.hr-head .title { font-size: 1.75rem; font-weight: 700; line-height: 1.3; }
+/* 페이지 바탕: 위는 거의 검정, 아래로 푸른 보라 */
+.stApp, [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #34428a 0%, #26305c 28%, #1c2236 62%, #151925 100%) fixed !important;
+}
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stHeader"] * { color: var(--ax-ink) !important; }
+[data-testid="stMainBlockContainer"] { max-width: 1200px; padding-top: 2.6rem; padding-bottom: 5rem; }
+.stApp, .stApp div, .stApp p, .stApp label, .stApp input, .stApp button, .stApp small, .stApp b,
+.stApp span:not([data-testid="stIconMaterial"]),
+section[role="dialog"] div, section[role="dialog"] p, section[role="dialog"] label, section[role="dialog"] input,
+section[role="dialog"] button, section[role="dialog"] h2, section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
+    font-family: "Gowun Dodum", -apple-system, "Malgun Gothic", sans-serif !important;
+}
+.stApp, .stApp p, .stApp span, .stApp label { color: var(--ax-ink); }
 
-/* 섹션 제목 (번호 배지) */
-.hr-sec { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 1rem; margin: 0 0 0.25rem; }
-.hr-sec .n {
-    width: 1.5rem; height: 1.5rem; border-radius: 50%;
-    background: var(--hr-tint); color: var(--hr-accent);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 0.8rem; font-weight: 700;
+/* ---------- 글자 굵기·크기 ----------
+   Gowun Dodum은 굵기가 하나뿐이라, 가짜 굵게 대신 같은 색 윤곽선으로 획을 굵힘 */
+html { font-size: 18.5px; }
+.stApp div, .stApp p, .stApp label, .stApp input, .stApp button, .stApp b, .stApp small,
+.stApp span:not([data-testid="stIconMaterial"]),
+section[role="dialog"] p, section[role="dialog"] label, section[role="dialog"] input,
+section[role="dialog"] button, section[role="dialog"] h2,
+section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
+    -webkit-text-stroke: 0.45px currentColor;
+}
+.ax-hero .h1, .ax-hero .h1 *, .ax-big, .ax-big *, .ax-done, .ax-done *, .ax-title {
+    -webkit-text-stroke: 1px currentColor !important;
+}
+.stApp input::placeholder { -webkit-text-stroke: 0 !important; }
+
+/* ---------- 모션 ---------- */
+@keyframes ax-rise { from { transform: translateY(105%); } to { transform: translateY(0); } }
+@keyframes ax-fadeup { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes ax-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes ax-twinkle { 0%, 88%, 100% { filter: none; } 92% { filter: brightness(1.9); } }
+@keyframes ax-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+    .stApp *, .stApp *::before, .stApp *::after { animation: none !important; transition: none !important; }
 }
 
-/* 테두리 컨테이너를 카드처럼 */
-div[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px !important; }
-
-/* 예상 금액 카드 */
-.hr-est {
-    border: 1px solid var(--hr-accent); border-radius: 14px;
-    padding: 0.9rem 1.1rem; margin: 0.4rem 0 0.9rem;
+/* ---------- 상단 바 ---------- */
+.ax-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.4rem; }
+.ax-logo { display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em; }
+.ax-logo .mk { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+.ax-logo .mk b { width: 3px; background: var(--ax-ink); display: block; }
+.ax-tag {
+    background: var(--ax-lime); color: var(--ax-lime-ink) !important;
+    font-size: 0.82rem; font-weight: 700; letter-spacing: 0.08em; padding: 0.5rem 0.9rem;
 }
-.hr-est .r { display: flex; justify-content: space-between; align-items: baseline; padding: 0.15rem 0; font-size: 0.95rem; }
-.hr-est .r .k { opacity: 0.7; }
-.hr-est .total { border-top: 1px solid var(--hr-line); margin-top: 0.4rem; padding-top: 0.55rem; }
-.hr-est .total .v { font-size: 1.6rem; font-weight: 700; color: var(--hr-accent); }
-.hr-est .note { font-size: 0.78rem; opacity: 0.55; margin-top: 0.2rem; }
 
-/* 영수증 카드 */
-.hr-done { display: flex; align-items: center; gap: 0.4rem; color: #2f9e44; font-weight: 600; margin: 0.4rem 0 0.6rem; }
-.hr-rcpt { background: var(--hr-soft); border-radius: 14px; padding: 1.1rem 1.2rem; margin-bottom: 0.9rem; }
-.hr-rcpt .meta { font-size: 0.85rem; opacity: 0.65; }
-.hr-rcpt .amount { font-size: 2rem; font-weight: 700; margin: 0.15rem 0 0.7rem; }
-.hr-rcpt .r { display: flex; justify-content: space-between; gap: 1rem; padding: 0.22rem 0; font-size: 0.93rem; }
-.hr-rcpt .r .k { opacity: 0.7; }
-.hr-rcpt .r .v { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.hr-rcpt .sum { border-top: 1px dashed var(--hr-line); margin-top: 0.45rem; padding-top: 0.55rem; font-weight: 600; }
-.hr-rcpt .sum .k { opacity: 1; }
+/* ---------- 히어로 ---------- */
+.ax-hero .h1 {
+    font-size: clamp(2.2rem, 6vw, 3.9rem) !important; font-weight: 400 !important;
+    line-height: 1.18 !important; letter-spacing: -0.03em; color: var(--ax-ink) !important;
+    margin: 0 0 1rem !important; padding: 0 !important;
+}
+.ax-hero .h1 .ln { display: block; overflow: hidden; padding-bottom: 0.06em; }
+.ax-hero .h1 .ln > span { display: inline-block; animation: ax-rise 0.9s cubic-bezier(.2,.7,.1,1) both; }
+.ax-hero .h1 .ln:nth-child(2) > span { animation-delay: 0.12s; }
+.ax-hero p { font-size: 1.25rem; color: var(--ax-dim) !important; margin: 0; animation: ax-fadeup 0.8s 0.35s both; }
 
-/* 기본(진한) 버튼: 보고서 생성 / 보고서 다운로드 / 저장 */
+/* ---------- 픽셀 모자이크 ---------- */
+.ax-mosaic { display: grid; gap: 1px; margin: 2rem 0 0.4rem; }
+.ax-mosaic i { display: block; aspect-ratio: 1; transform-origin: bottom; animation: ax-grow 0.6s cubic-bezier(.2,.7,.1,1) both; }
+.ax-mosaic i.tw { animation: ax-grow 0.6s cubic-bezier(.2,.7,.1,1) both, ax-twinkle 4.5s infinite; }
+.ax-mosaic .c0 { background: transparent; }
+.ax-mosaic .c1 { background: var(--ax-peri); }
+.ax-mosaic .c2 { background: var(--ax-cream); }
+.ax-mosaic .c3 { background: var(--ax-lime); }
+
+/* 픽셀 로고: 왼쪽부터 칸 단위로 채워지며 등장 */
+@keyframes ax-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.ax-logo-pix { margin: 2.4rem 0 1.6rem; }
+.ax-logo-pix img { display: block; width: 100%; height: auto; image-rendering: pixelated; animation: ax-wipe 1.6s steps(40) 0.35s both; }
+
+/* ---------- 섹션 (왼쪽 설명 + 오른쪽 입력) ---------- */
+.st-key-ax_basic, .st-key-ax_move, .st-key-ax_cost, .st-key-ax_est, .st-key-ax_result {
+    border-top: 1px solid var(--ax-line);
+    padding: 1.8rem 0 1.4rem;
+    animation: ax-fadeup 0.8s cubic-bezier(.2,.7,.1,1) both;
+}
+.st-key-ax_move { animation-delay: 0.08s; }
+.st-key-ax_cost { animation-delay: 0.16s; }
+.st-key-ax_est { animation-delay: 0.24s; }
+
+.ax-label { display: flex; align-items: center; gap: 0.55rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.14em; color: var(--ax-ink); }
+.ax-label::before { content: ""; width: 3px; height: 0.95rem; background: var(--ax-lime); }
+.ax-title { font-size: 1.75rem; font-weight: 300; letter-spacing: -0.02em; margin: 0.7rem 0 0.4rem; color: var(--ax-ink); }
+.ax-desc { font-size: 1rem; line-height: 1.6; color: var(--ax-dim); max-width: 22rem; }
+
+/* 라벨, 캡션 */
+.stApp [data-testid="stWidgetLabel"] p { font-size: 0.95rem !important; font-weight: 500; color: var(--ax-dim) !important; }
+.stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] * { color: var(--ax-faint) !important; font-size: 0.95rem !important; }
+
+/* 밑줄 입력칸 */
+.stApp [data-testid="stTextInputRootElement"],
+.stApp [data-testid="stDateInputField"],
+.stApp [data-testid="stSelectbox"] [role="group"],
+.stApp [data-testid="stNumberInputContainer"] {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid var(--ax-line) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transition: border-color 0.25s ease;
+}
+.stApp [data-testid="stTextInputRootElement"]:focus-within,
+.stApp [data-testid="stDateInputField"]:focus-within,
+.stApp [data-testid="stSelectbox"] [role="group"]:focus-within,
+.stApp [data-testid="stNumberInputContainer"]:focus-within { border-bottom-color: var(--ax-lime) !important; }
+.stApp [data-testid="stTextInputRootElement"] input,
+.stApp [data-testid="stNumberInputContainer"] input,
+.stApp [data-testid="stSelectbox"] input,
+.stApp [data-testid="stDateInputField"] * {
+    background: transparent !important;
+    color: var(--ax-ink) !important;
+    -webkit-text-fill-color: var(--ax-ink) !important;
+    font-size: 1.2rem !important;
+    padding-left: 0 !important;
+}
+.stApp [data-testid="stSelectbox"] svg, .stApp [data-testid="stDateInputField"] svg,
+.stApp [data-testid="stDateInputCalendarButton"] svg { color: var(--ax-dim) !important; fill: var(--ax-dim); }
+.stApp input::placeholder { color: var(--ax-faint) !important; -webkit-text-fill-color: var(--ax-faint) !important; }
+[data-testid="stNumberInputStepDown"], [data-testid="stNumberInputStepUp"] { display: none !important; }
+
+/* 이름·날짜 / 비용 3칸 / 증빙 2칸은 휴대폰에서도 한 줄 */
+.st-key-ax_basic_in [data-testid="stHorizontalBlock"],
+.st-key-ax_cost_in [data-testid="stHorizontalBlock"],
+.st-key-ax_files [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 0.9rem !important; }
+.st-key-ax_basic_in [data-testid="stColumn"],
+.st-key-ax_cost_in [data-testid="stColumn"],
+.st-key-ax_files [data-testid="stColumn"] { min-width: 0 !important; flex: 1 1 0 !important; width: auto !important; }
+
+/* 연료 선택: 얇은 테두리 박스, 선택 시 라임 */
+.st-key-ax_move [data-testid="stRadioGroup"] { gap: 0.45rem !important; flex-wrap: wrap; }
+.st-key-ax_move label[data-testid="stRadioOption"] {
+    border: 1px solid var(--ax-line); border-radius: 0; padding: 0.5rem 1rem; margin: 0 !important;
+    cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.st-key-ax_move label[data-testid="stRadioOption"]:hover { border-color: var(--ax-ink); }
+.st-key-ax_move label[data-testid="stRadioOption"] > div > div:not([data-testid="stMarkdownContainer"]) { display: none !important; }
+.st-key-ax_move label[data-testid="stRadioOption"] p { font-size: 1.02rem !important; color: var(--ax-ink) !important; }
+.st-key-ax_move label[data-testid="stRadioOption"][data-selected="true"] { background: var(--ax-lime); border-color: var(--ax-lime); }
+.st-key-ax_move label[data-testid="stRadioOption"][data-selected="true"] p { color: var(--ax-lime-ink) !important; font-weight: 700; }
+
+/* ---------- 예상 금액 패널 (하프톤 잔점) ---------- */
+.ax-panel {
+    background-color: var(--ax-panel);
+    background-image: radial-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1.3px);
+    background-size: 7px 7px;
+    padding: 1.6rem 1.6rem 1.3rem;
+}
+.ax-big { font-size: clamp(3rem, 8vw, 4.6rem); font-weight: 300; letter-spacing: -0.035em; line-height: 1.05; color: var(--ax-ink); }
+.ax-big small { font-size: 0.4em; font-weight: 400; color: var(--ax-dim); margin-left: 0.25rem; letter-spacing: 0; }
+.ax-live { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; letter-spacing: 0.12em; font-weight: 700; color: var(--ax-dim); margin-bottom: 0.9rem; }
+.ax-live::before { content: ""; width: 7px; height: 7px; background: var(--ax-lime); animation: ax-pulse 1.6s infinite; }
+.ax-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem; margin-top: 1.3rem; }
+.ax-box { border: 1px solid var(--ax-line); padding: 0.75rem 0.9rem; background: rgba(21, 25, 37, 0.35); }
+.ax-box .k { font-size: 0.88rem; color: var(--ax-dim); margin-bottom: 0.25rem; }
+.ax-box .v { font-size: 1.25rem; font-weight: 500; color: var(--ax-ink); }
+.ax-note { font-size: 0.92rem; color: var(--ax-faint); margin-top: 0.9rem; }
+
+/* ---------- 진행 상태 문구: 단계마다 색 구분 ---------- */
+.ax-status { display: flex; align-items: center; gap: 0.6rem; font-size: 1.2rem; margin: 0.2rem 0 0.7rem; }
+.ax-status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+.ax-status.ready, .ax-status.ready * { color: #8fd3ff !important; }
+.ax-status.making, .ax-status.making * { color: #ffc65c !important; }
+.ax-status.making::before { animation: ax-pulse 0.9s infinite; }
+.ax-box .v.pending { color: var(--ax-dim); font-size: 1rem; }
+
+/* ---------- 결과 ---------- */
+.ax-done { font-size: clamp(2.1rem, 5.2vw, 3rem); font-weight: 300; letter-spacing: -0.03em; line-height: 1.25; margin: 0.6rem 0 0.4rem; color: var(--ax-ink); }
+.ax-done .ln { display: block; overflow: hidden; }
+.ax-done .ln > span { display: inline-block; animation: ax-rise 0.9s cubic-bezier(.2,.7,.1,1) both; }
+.ax-done .ln:nth-child(2) > span { animation-delay: 0.1s; }
+.ax-done .ln.ok, .ax-done .ln.ok * { color: var(--ax-lime) !important; }
+.ax-rows { margin-top: 0.4rem; }
+.ax-rows .r { display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--ax-line); font-size: 1.08rem; }
+.ax-rows .r .k { color: var(--ax-dim); }
+.ax-rows .r .v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ax-rows .r.sum { border-bottom: none; padding-top: 0.9rem; }
+.ax-rows .r.sum .k { color: var(--ax-ink); font-weight: 600; }
+.ax-rows .r.sum .v { color: var(--ax-lime); font-size: 1.6rem; font-weight: 500; }
+.st-key-ax_files img { width: 100% !important; height: 150px !important; object-fit: cover; filter: grayscale(1) contrast(1.05); transition: filter 0.4s ease; }
+.st-key-ax_files img:hover { filter: none; }
+.st-key-ax_files [data-testid="stElementContainer"]:has(img),
+.st-key-ax_files [data-testid="stElementContainer"]:has(img) div { width: 100% !important; }
+
+/* ---------- 버튼 ---------- */
+/* 라임 막대: 보고서 생성 / 보고서 다운로드 / 저장 */
 div.stButton > button[kind="primary"],
 div.stDownloadButton > button[kind="primary"] {
-    background-color: var(--hr-navy) !important;
-    border: none !important;
-    border-radius: 12px !important;
-    min-height: 3.2em !important;
-    transition: background-color 0.15s ease;
+    background: var(--ax-lime) !important; border: none !important; border-radius: 0 !important;
+    min-height: 3.3em !important; transition: background 0.2s ease, letter-spacing 0.3s ease;
 }
 div.stButton > button[kind="primary"] p,
 div.stDownloadButton > button[kind="primary"] p {
-    color: #ffffff !important;
-    font-size: 1.15rem !important;
-    font-weight: 600 !important;
+    color: var(--ax-lime-ink) !important; font-size: 1.2rem !important; font-weight: 700 !important; letter-spacing: 0.04em;
 }
 div.stButton > button[kind="primary"]:hover,
-div.stDownloadButton > button[kind="primary"]:hover {
-    background-color: var(--hr-navy-hover) !important;
-}
+div.stDownloadButton > button[kind="primary"]:hover { background: #e6f88a !important; }
+div.stButton > button[kind="primary"]:hover p,
+div.stDownloadButton > button[kind="primary"]:hover p { letter-spacing: 0.12em; }
 
-/* 보조(테두리) 버튼: 캡처 받기 / 취소 — 글자색은 테마를 따라가 다크모드에서도 보임 */
+/* 테두리 버튼: 캡처 받기 / 취소 */
 div.stButton > button[kind="secondary"],
 div.stDownloadButton > button[kind="secondary"] {
-    background: transparent !important;
-    border: 1px solid var(--hr-line) !important;
-    border-radius: 10px !important;
+    background: transparent !important; border: 1px solid var(--ax-line) !important; border-radius: 0 !important;
+    transition: border-color 0.2s ease;
 }
+div.stButton > button[kind="secondary"] p,
+div.stDownloadButton > button[kind="secondary"] p { color: var(--ax-ink) !important; font-size: 1rem !important; letter-spacing: 0.04em; }
 div.stButton > button[kind="secondary"]:hover,
-div.stDownloadButton > button[kind="secondary"]:hover {
-    border-color: var(--hr-accent) !important;
-    color: var(--hr-accent) !important;
-}
+div.stDownloadButton > button[kind="secondary"]:hover { border-color: var(--ax-lime) !important; }
 
-/* 도착지 드롭다운 목록 맨 아래 '도착지 추가하기' 항목을 다른 색상으로 표시 */
+/* 알림 상자 */
+.stApp [data-testid="stAlertContainer"] { background: rgba(255, 255, 255, 0.06) !important; border-left: 3px solid var(--ax-lime); border-radius: 0 !important; }
+.stApp [data-testid="stAlertContainer"] * { color: var(--ax-ink) !important; font-size: 1.02rem; }
+
+/* 도착지 추가 팝업 */
+section[role="dialog"] { background: #1c2236 !important; border-radius: 0 !important; border: 1px solid var(--ax-line); }
+section[role="dialog"] p, section[role="dialog"] span, section[role="dialog"] label,
+section[role="dialog"] h2, section[role="dialog"] small { color: var(--ax-ink) !important; }
+section[role="dialog"] button[aria-label="Close"] svg { color: var(--ax-ink) !important; }
+section[role="dialog"] [data-testid="stTextInputRootElement"],
+section[role="dialog"] [data-testid="stNumberInputContainer"] {
+    background: transparent !important; border: none !important;
+    border-bottom: 1px solid var(--ax-line) !important; border-radius: 0 !important;
+}
+section[role="dialog"] [data-testid="stTextInputRootElement"]:focus-within,
+section[role="dialog"] [data-testid="stNumberInputContainer"]:focus-within { border-bottom-color: var(--ax-lime) !important; }
+section[role="dialog"] input {
+    background: transparent !important; color: var(--ax-ink) !important;
+    -webkit-text-fill-color: var(--ax-ink) !important; padding-left: 0 !important;
+}
+section[role="dialog"] input::placeholder { color: var(--ax-faint) !important; -webkit-text-fill-color: var(--ax-faint) !important; }
+section[role="dialog"] [data-testid="stFileUploaderDropzone"] { background: var(--ax-panel) !important; border: 1px dashed var(--ax-line) !important; border-radius: 0 !important; }
+section[role="dialog"] [data-testid="stFileUploaderDropzone"] button { background: transparent !important; border: 1px solid var(--ax-line) !important; border-radius: 0 !important; }
+section[role="dialog"] [data-testid="stElementContainer"]:has(.stButton),
+section[role="dialog"] .stButton, section[role="dialog"] .stButton > button { width: 100% !important; }
+
+/* 도착지 드롭다운 목록 맨 아래 '도착지 추가하기' 항목 (구버전 Streamlit) */
 ul[data-testid="stSelectboxVirtualDropdown"] li:last-child,
 ul[data-testid="stSelectboxVirtualDropdown"] li:last-child * {
     color: #ff8c00 !important;
@@ -855,20 +1060,27 @@ ul[data-testid="stSelectboxVirtualDropdown"] li:last-child * {
 </style>
 """, unsafe_allow_html=True)
 
+# 상단 바 + 히어로 + 픽셀 모자이크
 st.markdown(
-    '<div class="hr-head"><div class="eyebrow">한국산업인력공단 경북지사 · 외부시험장</div>'
-    '<div class="title">시외출장 지출보고서 생성기</div></div>',
+    '<div class="ax-top"><div class="ax-logo"><span class="mk"><b style="height:6px"></b><b style="height:14px"></b>'
+    '<b style="height:9px"></b></span>HRDK 출장보고서</div><span class="ax-tag">경북지사 · 외부시험장</span></div>'
+    '<div class="ax-hero"><div class="h1"><span class="ln"><span>시외출장 지출보고서 생성기</span></span></div>'
+    '<p>1분 만에 보고서를 생성해볼까요?</p></div>'
+    f'<div class="ax-logo-pix"><img alt="HRDK 한국산업인력공단 경북지사" src="data:image/png;base64,{HRDK_LOGO_PIXEL_B64}"></div>',
     unsafe_allow_html=True,
 )
 
 
-def section_title(num, text):
-    st.markdown(f'<div class="hr-sec"><span class="n">{num}</span>{text}</div>', unsafe_allow_html=True)
+def section_head(label, title, desc=None):
+    html = f'<div class="ax-label">{label}</div><div class="ax-title">{title}</div>'
+    if desc:
+        html += f'<div class="ax-desc">{desc}</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 
 @st.dialog("도착지 추가하기")
 def add_destination_dialog():
-    st.markdown("네이버 지도를 캡처하고 그 캡처본을 도착지명(ex: 경북소프트웨어마이스터고등학교)으로 저장하여 첨부해 주세요.")
+    st.markdown("네이버 지도를 캡처하고 그 캡처본을 도착지명으로 저장하여 첨부해 주세요.")
 
     map_capture = st.file_uploader(
         "네이버 지도 캡처 이미지 첨부",
@@ -877,12 +1089,10 @@ def add_destination_dialog():
     )
     new_dest_name = st.text_input(
         "도착지명",
-        placeholder="ex: 경북소프트웨어마이스터고등학교",
         key="new_dest_name",
     )
     new_dest_region = st.text_input(
         "도착지 지역명",
-        placeholder="ex: 의성, 영주",
         key="new_dest_region",
     )
     new_dest_dist = st.number_input(
@@ -894,9 +1104,9 @@ def add_destination_dialog():
 
     col_save, col_cancel = st.columns(2)
     with col_save:
-        save_clicked = st.button("저장", type="primary", use_container_width=True)
+        save_clicked = st.button("저장", type="primary")
     with col_cancel:
-        cancel_clicked = st.button("취소", use_container_width=True)
+        cancel_clicked = st.button("취소")
 
     if save_clicked:
         name = new_dest_name.strip()
@@ -950,171 +1160,198 @@ def add_destination_dialog():
         st.rerun()
 
 
-# ---------- ① 기본정보 ----------
-with st.container(border=True):
-    section_title(1, "기본정보")
-    col1, col2 = st.columns(2)
-    with col1:
-        user_name = st.text_input("이름", key="user_name", placeholder="예: 민정연")
-    with col2:
-        run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
+# ---------- 01 기본정보 ----------
+with st.container(key="ax_basic"):
+    s_left, s_right = st.columns([1, 1.6], gap="large")
+    with s_left:
+        section_head("01 · BASIC", "기본정보", "보고서 파일은 날짜와 이름으로 저장돼요.")
+    with s_right:
+        with st.container(key="ax_basic_in"):
+            col1, col2 = st.columns(2)
+            with col1:
+                user_name = st.text_input("이름", key="user_name")
+            with col2:
+                run_date = st.date_input("운행일시", datetime.today(), max_value=datetime.today())
 
-# ---------- ② 이동정보 ----------
-with st.container(border=True):
-    section_title(2, "이동정보")
-    if "pending_dest_selection" in st.session_state:
-        st.session_state.dest_selectbox = st.session_state.pop("pending_dest_selection")
+# ---------- 02 이동정보 ----------
+with st.container(key="ax_move"):
+    s_left, s_right = st.columns([1, 1.6], gap="large")
+    with s_left:
+        section_head("02 · ROUTE", "이동정보", "도착지와 연료를 고르면 왕복 거리와 연비가 자동으로 들어가요.")
+    with s_right:
+        if "pending_dest_selection" in st.session_state:
+            st.session_state.dest_selectbox = st.session_state.pop("pending_dest_selection")
 
-    dest_options = list(DESTINATION_DB.keys()) + [ADD_DEST_OPTION]
-    dest_selection = st.selectbox("도착지", dest_options, key="dest_selectbox")
+        dest_options = list(DESTINATION_DB.keys()) + [ADD_DEST_OPTION]
+        dest_selection = st.selectbox("도착지", dest_options, key="dest_selectbox")
+        # '도착지 추가하기'(마지막 항목) 강조 — 최신 Streamlit 드롭다운 구조 대응
+        st.markdown(
+            f'<style>[data-testid="stSelectboxVirtualDropdown"] [role="option"][data-key="{len(dest_options) - 1}"],'
+            f'[data-testid="stSelectboxVirtualDropdown"] [role="option"][data-key="{len(dest_options) - 1}"] * '
+            '{ color: #ff8c00 !important; font-weight: 600 !important; }</style>',
+            unsafe_allow_html=True,
+        )
 
-    if dest_selection != ADD_DEST_OPTION:
-        _info = DESTINATION_DB[dest_selection]
-        st.caption(f"{_info['path']} · 왕복 {_info['round_dist']}km")
-
-    fuel_selection = st.radio(
-        "연료",
-        FUEL_OPTIONS,
-        format_func=lambda x: FUEL_SHORT_LABEL.get(x, x),
-        horizontal=True,
-    )
-    st.caption(f"연비 {get_fuel_efficiency(fuel_selection)} km/ℓ 기준")
+        fuel_selection = st.radio(
+            "연료",
+            FUEL_OPTIONS,
+            format_func=lambda x: FUEL_SHORT_LABEL.get(x, x),
+            horizontal=True,
+        )
 
 if dest_selection == ADD_DEST_OPTION:
     add_destination_dialog()
 
-# ---------- ③ 비용 ----------
-with st.container(border=True):
-    section_title(3, "비용")
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        toll_input = st.number_input("통행료", 0, step=100)
-    with col4:
-        daily_fee = st.number_input("일비", min_value=0, value=25000, step=1000)
-    with col5:
-        meal_fee = st.number_input("식비", min_value=0, value=25000, step=1000)
+# ---------- 03 비용 ----------
+with st.container(key="ax_cost"):
+    s_left, s_right = st.columns([1, 1.6], gap="large")
+    with s_left:
+        section_head("03 · COST", "비용", "일비·식비는 기본 25,000원이에요.")
+    with s_right:
+        with st.container(key="ax_cost_in"):
+            col3, col4, col5 = st.columns(3)
+            with col3:
+                toll_input = st.number_input("통행료", 0, step=100)
+            with col4:
+                daily_fee = st.number_input("일비", min_value=0, value=25000, step=1000)
+            with col5:
+                meal_fee = st.number_input("식비", min_value=0, value=25000, step=1000)
 
 matched_img_file = find_matched_map_image(dest_selection) if dest_selection != ADD_DEST_OPTION else None
 
 if "report_ready" not in st.session_state:
     st.session_state.report_ready = False
 
-if dest_selection == ADD_DEST_OPTION:
-    st.info("도착지를 추가한 뒤, 목록에서 새로 추가된 도착지를 선택해 주세요.")
-else:
-    # ---------- 예상 금액 카드 (기본 유가 기준 미리보기) ----------
-    _round = DESTINATION_DB[dest_selection]["round_dist"]
-    _eff = get_fuel_efficiency(fuel_selection)
-    _est_price = get_default_oil_price(fuel_selection)
-    _est_fuel = int(_round / _eff * _est_price)
-    _est_total = int((_est_fuel + toll_input + daily_fee + meal_fee) // 10) * 10
-    st.markdown(
-        f'''<div class="hr-est">
-            <div class="r"><span class="k">예상 유류비</span><span>약 {_est_fuel:,}원</span></div>
-            <div class="r total"><span>예상 총액</span><span class="v">{_est_total:,}원</span></div>
-            <div class="note">기본 유가({_est_price:,}원/ℓ) 기준 · 보고서 생성 시 오피넷 실제 유가로 확정됩니다</div>
-        </div>''',
-        unsafe_allow_html=True,
-    )
+# ---------- 04 예상 금액 (입력·선택한 값만 바로 합산, 유류비는 생성 시 오피넷 유가로 계산) ----------
+with st.container(key="ax_est"):
+    if dest_selection == ADD_DEST_OPTION:
+        section_head("04 · ESTIMATE", "예상 금액", "도착지를 추가한 뒤, 목록에서 새로 추가된 도착지를 선택해 주세요.")
+    else:
+        _round = DESTINATION_DB[dest_selection]["round_dist"]
+        _eff = get_fuel_efficiency(fuel_selection)
+        _entered_total = toll_input + daily_fee + meal_fee
+        st.markdown(
+            f'''<div class="ax-panel">
+                <div class="ax-live">04 · ESTIMATE</div>
+                <div class="ax-big">{_entered_total:,}<small>원 + 유류비</small></div>
+                <div class="ax-boxes">
+                    <div class="ax-box"><div class="k">유류비 · 왕복 {_round}km, 연비 {_eff}km/ℓ</div><div class="v pending">생성할 때 계산</div></div>
+                    <div class="ax-box"><div class="k">통행료</div><div class="v">{toll_input:,}원</div></div>
+                    <div class="ax-box"><div class="k">일비</div><div class="v">{daily_fee:,}원</div></div>
+                    <div class="ax-box"><div class="k">식비</div><div class="v">{meal_fee:,}원</div></div>
+                </div>
+                <div class="ax-note">유류비는 보고서를 만들 때 운행일의 오피넷 유가로 계산해서 더해져요.</div>
+            </div>''',
+            unsafe_allow_html=True,
+        )
 
-    if st.button("보고서 생성", type="primary", use_container_width=True):
-        db_info = DESTINATION_DB[dest_selection]
-        round_distance = db_info["round_dist"]
-        efficiency = get_fuel_efficiency(fuel_selection)
+        st.write("")
+        # 진행 상태 문구 (준비됨 → 만드는 중 → 결과 영역에서 완료)
+        status_slot = st.empty()
+        if not st.session_state.report_ready:
+            status_slot.markdown('<div class="ax-status ready">보고서를 만들 준비가 됐어요.</div>', unsafe_allow_html=True)
+        if st.button("보고서 생성  ↗", type="primary", use_container_width=True):
+            status_slot.markdown('<div class="ax-status making">보고서를 만들고 있어요…</div>', unsafe_allow_html=True)
+            db_info = DESTINATION_DB[dest_selection]
+            round_distance = db_info["round_dist"]
+            efficiency = get_fuel_efficiency(fuel_selection)
 
-        with st.spinner("오피넷 조회 중..."):
             opinet_img, oil_price = capture_opinet_print_page(run_date, fuel_selection)
 
-        fuel_cost = int(round_distance / efficiency * oil_price)
-        total_cost_raw = fuel_cost + toll_input + daily_fee + meal_fee
-        total_cost = int(total_cost_raw // 10) * 10  # 총계만 1원 단위 절사 (예: 1882.72 -> 1880)
+            fuel_cost = int(round_distance / efficiency * oil_price)
+            total_cost_raw = fuel_cost + toll_input + daily_fee + meal_fee
+            total_cost = int(total_cost_raw // 10) * 10  # 총계만 1원 단위 절사 (예: 1882.72 -> 1880)
 
-        report_data = {
-            "date": run_date.strftime("%Y년 %m월 %d일"),
-            "path": db_info["path"],
-            "distance": round_distance,
-            "efficiency": efficiency,
-            "oil_price": oil_price,
-            "fuel_cost": fuel_cost,
-            "toll": toll_input,
-            "daily_allowance": daily_fee,
-            "meal_allowance": meal_fee,
-            "total_cost": total_cost
-        }
+            report_data = {
+                "date": run_date.strftime("%Y년 %m월 %d일"),
+                "path": db_info["path"],
+                "distance": round_distance,
+                "efficiency": efficiency,
+                "oil_price": oil_price,
+                "fuel_cost": fuel_cost,
+                "toll": toll_input,
+                "daily_allowance": daily_fee,
+                "meal_allowance": meal_fee,
+                "total_cost": total_cost
+            }
 
-        file = create_docx_report(report_data, matched_img_file, opinet_img)
+            file = create_docx_report(report_data, matched_img_file, opinet_img)
 
-        st.session_state.report_ready = True
-        st.session_state.report_file = file
-        # 저장 파일명: 날짜(MMDD) + 이름  예) 1011민정연.docx
-        safe_name = re.sub(r'[\\/:*?"<>|\s]', "", user_name or "")
-        st.session_state.report_download_name = f"{run_date.strftime('%m%d')}{safe_name}.docx"
-        st.session_state.opinet_img = opinet_img
-        st.session_state.matched_img_file = matched_img_file
-        st.session_state.report_data = report_data
-        st.session_state.report_dest = dest_selection
+            st.session_state.report_ready = True
+            st.session_state.report_file = file
+            # 저장 파일명: 날짜(MMDD) + 이름  예) 1011민정연.docx
+            safe_name = re.sub(r'[\\/:*?"<>|\s]', "", user_name or "")
+            st.session_state.report_download_name = f"{run_date.strftime('%m%d')}{safe_name}.docx"
+            st.session_state.opinet_img = opinet_img
+            st.session_state.matched_img_file = matched_img_file
+            st.session_state.report_data = report_data
+            st.session_state.report_dest = dest_selection
 
-# ---------- 결과: 영수증형 화면 ----------
+# ---------- 05 결과 ----------
 if st.session_state.report_ready:
     report_file = st.session_state.report_file
     opinet_img = st.session_state.opinet_img
     matched_img_file = st.session_state.matched_img_file
     rd = st.session_state.get("report_data")
 
-    st.write("")
-    st.markdown(
-        '<div class="hr-done"><span>✓</span><span>보고서가 준비되었습니다</span></div>',
-        unsafe_allow_html=True,
-    )
-
-    if rd:
+    with st.container(key="ax_result"):
         st.markdown(
-            f'''<div class="hr-rcpt">
-                <div class="meta">{rd["date"]} · {st.session_state.get("report_dest", "")} ({rd["path"]})</div>
-                <div class="amount">{rd["total_cost"]:,}원</div>
-                <div class="r"><span class="k">유류비 · {rd["distance"]}km ÷ {rd["efficiency"]} × {fmt_won(rd["oil_price"])}원</span><span class="v">{rd["fuel_cost"]:,}</span></div>
-                <div class="r"><span class="k">통행료</span><span class="v">{rd["toll"]:,}</span></div>
-                <div class="r"><span class="k">일비</span><span class="v">{rd["daily_allowance"]:,}</span></div>
-                <div class="r"><span class="k">식비</span><span class="v">{rd["meal_allowance"]:,}</span></div>
-                <div class="r sum"><span class="k">총계 (1원 단위 절사)</span><span class="v">{rd["total_cost"]:,}</span></div>
-            </div>''',
+            '<div class="ax-label">05 · REPORT</div>'
+            '<div class="ax-done"><span class="ln ok"><span>보고서가 준비됐어요.</span></span>'
+            f'<span class="ln"><span>{rd["total_cost"]:,}원</span></span></div>' if rd else
+            '<div class="ax-label">05 · REPORT</div><div class="ax-done"><span class="ln ok"><span>보고서가 준비됐어요.</span></span></div>',
             unsafe_allow_html=True,
         )
-
-    with open(report_file, "rb") as f:
-        st.download_button(
-            "보고서 다운로드",
-            f,
-            file_name=st.session_state.get("report_download_name", "출장지출증빙_보고서.docx"),
-            type="primary",
-            use_container_width=True
-        )
-
-    st.write("")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if matched_img_file and os.path.exists(matched_img_file):
-            st.image(matched_img_file, caption="네이버지도 경로")
-            with open(matched_img_file, "rb") as f_map:
-                st.download_button(
-                    "경로 캡처 받기",
-                    f_map.read(),
-                    file_name=os.path.basename(matched_img_file),
-                    key="dl_map_capture",
-                    use_container_width=True,
+        r_left, r_right = st.columns([1.5, 1], gap="large")
+        with r_left:
+            if rd:
+                st.markdown(
+                    f'''<div class="ax-rows">
+                        <div class="r"><span class="k">{rd["date"]} · {st.session_state.get("report_dest", "")}</span><span class="v">{rd["path"]}</span></div>
+                        <div class="r"><span class="k">유류비 · {rd["distance"]}km ÷ {rd["efficiency"]} × {fmt_won(rd["oil_price"])}원</span><span class="v">{rd["fuel_cost"]:,}</span></div>
+                        <div class="r"><span class="k">통행료</span><span class="v">{rd["toll"]:,}</span></div>
+                        <div class="r"><span class="k">일비</span><span class="v">{rd["daily_allowance"]:,}</span></div>
+                        <div class="r"><span class="k">식비</span><span class="v">{rd["meal_allowance"]:,}</span></div>
+                        <div class="r sum"><span class="k">총계 (1원 단위 절사)</span><span class="v">{rd["total_cost"]:,}원</span></div>
+                    </div>''',
+                    unsafe_allow_html=True,
                 )
-        else:
-            st.warning("map 폴더에서 일치하는 지도 사진을 찾지 못했습니다.")
-    with col_b:
-        if os.path.exists(opinet_img):
-            st.image(opinet_img, caption="오피넷 화면인쇄 증빙")
-            with open(opinet_img, "rb") as f_oil:
+            with open(report_file, "rb") as f:
                 st.download_button(
-                    "유가 캡처 받기",
-                    f_oil.read(),
-                    file_name="opinet_capture.png",
-                    key="dl_opinet_capture",
-                    use_container_width=True,
+                    "보고서 다운로드  ↓",
+                    f,
+                    file_name=st.session_state.get("report_download_name", "출장지출증빙_보고서.docx"),
+                    type="primary",
+                    use_container_width=True
                 )
-        else:
-            st.warning("오피넷 캡처 이미지를 생성하지 못했습니다. 위 에러 메시지를 확인해주세요.")
+        with r_right:
+            with st.container(key="ax_files"):
+                st.markdown('<div class="ax-label">EVIDENCE</div>', unsafe_allow_html=True)
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if matched_img_file and os.path.exists(matched_img_file):
+                        st.image(matched_img_file, caption="네이버지도 경로")
+                        with open(matched_img_file, "rb") as f_map:
+                            st.download_button(
+                                "경로 캡처",
+                                f_map.read(),
+                                file_name=os.path.basename(matched_img_file),
+                                key="dl_map_capture",
+                                use_container_width=True,
+                            )
+                    else:
+                        st.warning("map 폴더에서 일치하는 지도 사진을 찾지 못했습니다.")
+                with col_b:
+                    if os.path.exists(opinet_img):
+                        st.image(opinet_img, caption="오피넷 유가")
+                        with open(opinet_img, "rb") as f_oil:
+                            st.download_button(
+                                "유가 캡처",
+                                f_oil.read(),
+                                file_name="opinet_capture.png",
+                                key="dl_opinet_capture",
+                                use_container_width=True,
+                            )
+                    else:
+                        st.warning("오피넷 캡처 이미지를 생성하지 못했습니다. 위 에러 메시지를 확인해주세요.")
+
