@@ -828,6 +828,7 @@ section[role="dialog"] button, section[role="dialog"] h2, section[role="dialog"]
 /* ---------- 글자 굵기·크기 ----------
    Gowun Dodum은 굵기가 하나뿐이라, 가짜 굵게 대신 같은 색 윤곽선으로 획을 굵힘 */
 html { font-size: 18.5px; }
+.stApp, section[role="dialog"] { letter-spacing: 0.035em; }
 .stApp div, .stApp p, .stApp label, .stApp input, .stApp button, .stApp b, .stApp small,
 .stApp span:not([data-testid="stIconMaterial"]),
 section[role="dialog"] p, section[role="dialog"] label, section[role="dialog"] input,
@@ -852,7 +853,7 @@ section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
 
 /* ---------- 상단 바 ---------- */
 .ax-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.4rem; }
-.ax-logo { display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em; }
+.ax-logo { display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; font-weight: 500; letter-spacing: 0.03em; }
 .ax-logo .mk { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
 .ax-logo .mk b { width: 3px; background: var(--ax-ink); display: block; }
 .ax-tag {
@@ -863,7 +864,7 @@ section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
 /* ---------- 히어로 ---------- */
 .ax-hero .h1 {
     font-size: clamp(2.2rem, 6vw, 3.9rem) !important; font-weight: 400 !important;
-    line-height: 1.18 !important; letter-spacing: -0.03em; color: var(--ax-ink) !important;
+    line-height: 1.18 !important; letter-spacing: 0.02em; color: var(--ax-ink) !important;
     margin: 0 0 1rem !important; padding: 0 !important;
 }
 .ax-hero .h1 .ln { display: block; overflow: hidden; padding-bottom: 0.06em; }
@@ -897,7 +898,7 @@ section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
 
 .ax-label { display: flex; align-items: center; gap: 0.55rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.14em; color: var(--ax-ink); }
 .ax-label::before { content: ""; width: 3px; height: 0.95rem; background: var(--ax-lime); }
-.ax-title { font-size: 1.75rem; font-weight: 300; letter-spacing: -0.02em; margin: 0.7rem 0 0.4rem; color: var(--ax-ink); }
+.ax-title { font-size: 1.75rem; font-weight: 300; letter-spacing: 0.03em; margin: 0.7rem 0 0.4rem; color: var(--ax-ink); }
 .ax-desc { font-size: 1rem; line-height: 1.6; color: var(--ax-dim); max-width: 22rem; }
 
 /* 라벨, 캡션 */
@@ -962,7 +963,7 @@ section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
     background-size: 7px 7px;
     padding: 1.6rem 1.6rem 1.3rem;
 }
-.ax-big { font-size: clamp(3rem, 8vw, 4.6rem); font-weight: 300; letter-spacing: -0.035em; line-height: 1.05; color: var(--ax-ink); }
+.ax-big { font-size: clamp(3rem, 8vw, 4.6rem); font-weight: 300; letter-spacing: 0.01em; line-height: 1.05; color: var(--ax-ink); }
 .ax-big small { font-size: 0.4em; font-weight: 400; color: var(--ax-dim); margin-left: 0.25rem; letter-spacing: 0; }
 .ax-live { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; letter-spacing: 0.12em; font-weight: 700; color: var(--ax-dim); margin-bottom: 0.9rem; }
 .ax-live::before { content: ""; width: 7px; height: 7px; background: var(--ax-lime); animation: ax-pulse 1.6s infinite; }
@@ -981,7 +982,7 @@ section[role="dialog"] span:not([data-testid="stIconMaterial"]) {
 .ax-box .v.pending { color: var(--ax-dim); font-size: 1rem; }
 
 /* ---------- 결과 ---------- */
-.ax-done { font-size: clamp(2.1rem, 5.2vw, 3rem); font-weight: 300; letter-spacing: -0.03em; line-height: 1.25; margin: 0.6rem 0 0.4rem; color: var(--ax-ink); }
+.ax-done { font-size: clamp(2.1rem, 5.2vw, 3rem); font-weight: 300; letter-spacing: 0.02em; line-height: 1.25; margin: 0.6rem 0 0.4rem; color: var(--ax-ink); }
 .ax-done .ln { display: block; overflow: hidden; }
 .ax-done .ln > span { display: inline-block; animation: ax-rise 0.9s cubic-bezier(.2,.7,.1,1) both; }
 .ax-done .ln:nth-child(2) > span { animation-delay: 0.1s; }
@@ -1063,7 +1064,7 @@ ul[data-testid="stSelectboxVirtualDropdown"] li:last-child * {
 # 상단 바 + 히어로 + 픽셀 모자이크
 st.markdown(
     '<div class="ax-top"><div class="ax-logo"><span class="mk"><b style="height:6px"></b><b style="height:14px"></b>'
-    '<b style="height:9px"></b></span>HRDK 출장보고서</div><span class="ax-tag">경북지사 · 외부시험장</span></div>'
+    '<b style="height:9px"></b></span>HRDK 출장보고서</div></div>'
     '<div class="ax-hero"><div class="h1"><span class="ln"><span>시외출장 지출보고서 생성기</span></span></div>'
     '<p>1분 만에 보고서를 생성해볼까요?</p></div>'
     f'<div class="ax-logo-pix"><img alt="HRDK 한국산업인력공단 경북지사" src="data:image/png;base64,{HRDK_LOGO_PIXEL_B64}"></div>',
@@ -1250,7 +1251,7 @@ with st.container(key="ax_est"):
         status_slot = st.empty()
         if not st.session_state.report_ready:
             status_slot.markdown('<div class="ax-status ready">보고서를 만들 준비가 됐어요.</div>', unsafe_allow_html=True)
-        if st.button("보고서 생성  ↗", type="primary", use_container_width=True):
+        if st.button("보고서 생성", type="primary", use_container_width=True):
             status_slot.markdown('<div class="ax-status making">보고서를 만들고 있어요…</div>', unsafe_allow_html=True)
             db_info = DESTINATION_DB[dest_selection]
             round_distance = db_info["round_dist"]
