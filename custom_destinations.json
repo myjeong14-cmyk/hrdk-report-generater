@@ -23,10 +23,5 @@
     "dist": 36.0,
     "round_dist": 72.0,
     "path": "안동→영주→안동"
-  },
-  "test": {
-    "dist": 50.0,
-    "round_dist": 100.0,
-    "path": "안동→test→안동"
   }
 }
